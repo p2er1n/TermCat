@@ -11,7 +11,8 @@
     <string name="result_copied">Copied</string>
     <string name="home_title">TermCat</string>
     <string name="home_subtitle">Capture terms in any app and highlight risky clauses instantly.</string>
-    <string name="home_primary_action">Enable Floating Window</string>
+    <string name="home_primary_action_start">Enable Floating Window</string>
+    <string name="home_primary_action_stop">Disable Floating Window</string>
     <string name="home_manage_permission">Manage overlay permission</string>
     <string name="home_status_title">Status</string>
     <string name="home_status_permission">Overlay permission</string>
@@ -21,4 +22,19 @@
     <string name="home_status_window_running">Running</string>
     <string name="home_status_window_stopped">Not running</string>
     <string name="home_footer">Local OCR supports Chinese and English. Screenshots stay on device.</string>
+    <string name="llm_title">LLM configuration</string>
+    <string name="llm_required">Cloud analysis is required for risk detection.</string>
+    <string name="llm_endpoint_label">API endpoint</string>
+    <string name="llm_endpoint_placeholder">https://api.example.com/v1/chat</string>
+    <string name="llm_endpoint_error">Enter a valid http(s) URL.</string>
+    <string name="llm_model_label">Model</string>
+    <string name="llm_model_placeholder">gpt-4o-mini</string>
+    <string name="llm_model_error">Model is required.</string>
+    <string name="llm_api_key_label">API key</string>
+    <string name="llm_api_key_placeholder">sk-****</string>
+    <string name="llm_api_key_error">API key must be at least 8 characters.</string>
+    <string name="llm_helper_text">Your key is stored locally. Requests are sent during analysis.</string>
+    <string name="llm_error_config">LLM configuration is incomplete.</string>
+    <string name="llm_error_response">LLM returned an empty response.</string>
+    <string name="llm_error_generic">LLM request failed.</string>
 </resources>

@@ -28,6 +28,13 @@ import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import com.openai.client.OpenAIClient
+import com.openai.client.okhttp.OpenAIOkHttpClient
+import com.openai.models.ChatCompletion
+import com.openai.models.ChatCompletionCreateParams
+import com.openai.models.ChatCompletionMessageParam
+import com.openai.models.ChatCompletionSystemMessageParam
+import com.openai.models.ChatCompletionUserMessageParam
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
@@ -136,7 +143,7 @@ class ScreenshotService : Service() {
             val textFile = File(cacheDir, "capture_${System.currentTimeMillis()}.txt")
             textFile.writeText(ocrText)
         }
-        sendOcrBroadcast(ocrText)
+        runLlm(ocrText)
 
         Handler(Looper.getMainLooper()).post {
             val messageRes = if (ocrText.isNotEmpty()) R.string.ocr_done else R.string.ocr_failed
@@ -179,10 +186,95 @@ class ScreenshotService : Service() {
         }
     }
 
-    private fun sendOcrBroadcast(text: String) {
-        val intent = Intent(FloatingWindowService.ACTION_OCR_RESULT).apply {
+    private fun runLlm(ocrText: String) {
+        val endpoint = AppPrefs.getLlmEndpoint(this)
+        val apiKey = AppPrefs.getLlmApiKey(this)
+        val model = AppPrefs.getLlmModel(this)
+
+        if (endpoint.isBlank() || apiKey.isBlank() || model.isBlank()) {
+            sendLlmError(getString(R.string.llm_error_config), ocrText)
+            return
+        }
+        if (ocrText.isBlank()) {
+            sendLlmError(getString(R.string.llm_error_response), "")
+            return
+        }
+
+        try {
+            val client = createOpenAiClient(apiKey, endpoint)
+            val params = buildLlmParams(model, ocrText)
+            val response = client.chat().completions().create(params)
+            val content = extractContent(response)
+            if (content.isBlank()) {
+                sendLlmError(getString(R.string.llm_error_response), ocrText)
+                return
+            }
+            sendLlmResult(content)
+        } catch (exception: Exception) {
+            sendLlmError(getString(R.string.llm_error_generic), ocrText)
+        }
+    }
+
+    private fun createOpenAiClient(apiKey: String, endpoint: String): OpenAIClient {
+        return OpenAIOkHttpClient.builder()
+            .apiKey(apiKey)
+            .baseUrl(normalizeBaseUrl(endpoint))
+            .build()
+    }
+
+    private fun buildLlmParams(model: String, ocrText: String): ChatCompletionCreateParams {
+        val systemPrompt = """
+            You are a legal risk assistant. Analyze the text and highlight risky clauses.
+            Return concise bullet points. If no risks, say "No obvious risks found."
+        """.trimIndent()
+        val systemMessage = ChatCompletionSystemMessageParam.builder()
+            .content(ChatCompletionSystemMessageParam.Content.ofText(systemPrompt))
+            .build()
+        val userMessage = ChatCompletionUserMessageParam.builder()
+            .content(ChatCompletionUserMessageParam.Content.ofText("Text:\n$ocrText"))
+            .build()
+
+        val messages = listOf(
+            ChatCompletionMessageParam.ofSystem(systemMessage),
+            ChatCompletionMessageParam.ofUser(userMessage)
+        )
+
+        return ChatCompletionCreateParams.builder()
+            .model(model)
+            .messages(messages)
+            .temperature(0.2)
+            .build()
+    }
+
+    private fun extractContent(response: ChatCompletion): String {
+        val first = response.choices().firstOrNull() ?: return ""
+        val content = first.message().content()
+        return content.orElse("")
+    }
+
+    private fun normalizeBaseUrl(endpoint: String): String {
+        val trimmed = endpoint.trim().removeSuffix("/")
+        val v1Index = trimmed.indexOf("/v1")
+        return if (v1Index >= 0) {
+            trimmed.substring(0, v1Index + 3)
+        } else {
+            trimmed
+        }
+    }
+
+    private fun sendLlmResult(text: String) {
+        val intent = Intent(FloatingWindowService.ACTION_LLM_RESULT).apply {
             setPackage(packageName)
-            putExtra(FloatingWindowService.EXTRA_OCR_TEXT, text)
+            putExtra(FloatingWindowService.EXTRA_LLM_TEXT, text)
+        }
+        sendBroadcast(intent)
+    }
+
+    private fun sendLlmError(message: String, ocrText: String) {
+        val intent = Intent(FloatingWindowService.ACTION_LLM_ERROR).apply {
+            setPackage(packageName)
+            putExtra(FloatingWindowService.EXTRA_LLM_ERROR, message)
+            putExtra(FloatingWindowService.EXTRA_OCR_TEXT, ocrText)
         }
         sendBroadcast(intent)
     }
@@ -235,5 +327,6 @@ class ScreenshotService : Service() {
         const val EXTRA_RESULT_DATA = "extra_result_data"
         private const val NOTIFICATION_ID = 201
         private const val OCR_TIMEOUT_SECONDS = 8L
+        private const val LLM_TIMEOUT_SECONDS = 20L
     }
 }

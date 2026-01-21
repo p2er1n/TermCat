@@ -33,6 +33,7 @@ class FloatingWindowService : Service() {
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        sendOverlayStatusBroadcast(true)
         AppPrefs.setOverlayRunning(this, true)
 
         val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -101,6 +102,7 @@ class FloatingWindowService : Service() {
         }
         unregisterResultReceiver()
         AppPrefs.setOverlayRunning(this, false)
+        sendOverlayStatusBroadcast(false)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -184,9 +186,10 @@ class FloatingWindowService : Service() {
 
     private fun registerResultReceiver() {
         val filter = IntentFilter().apply {
-            addAction(ACTION_OCR_RESULT)
             addAction(ACTION_CAPTURE_CANCELLED)
             addAction(ACTION_CAPTURE_DONE)
+            addAction(ACTION_LLM_RESULT)
+            addAction(ACTION_LLM_ERROR)
         }
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(resultReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -208,10 +211,22 @@ class FloatingWindowService : Service() {
                 ACTION_CAPTURE_DONE -> {
                     showProcessing()
                 }
-                ACTION_OCR_RESULT -> {
-                    val rawText = intent.getStringExtra(EXTRA_OCR_TEXT).orEmpty()
+                ACTION_LLM_RESULT -> {
+                    val rawText = intent.getStringExtra(EXTRA_LLM_TEXT).orEmpty()
                     val trimmed = rawText.take(MAX_RESULT_CHARS)
                     showResult(trimmed)
+                }
+                ACTION_LLM_ERROR -> {
+                    val error = intent.getStringExtra(EXTRA_LLM_ERROR).orEmpty()
+                    val ocr = intent.getStringExtra(EXTRA_OCR_TEXT).orEmpty()
+                    val combined = buildString {
+                        append(error)
+                        if (ocr.isNotBlank()) {
+                            append("\n\n")
+                            append(ocr)
+                        }
+                    }
+                    showResult(combined.take(MAX_RESULT_CHARS))
                 }
                 ACTION_CAPTURE_CANCELLED -> {
                     restoreOverlay()
@@ -220,11 +235,24 @@ class FloatingWindowService : Service() {
         }
     }
 
+    private fun sendOverlayStatusBroadcast(running: Boolean) {
+        val intent = Intent(ACTION_OVERLAY_STATUS).apply {
+            setPackage(packageName)
+            putExtra(EXTRA_OVERLAY_RUNNING, running)
+        }
+        sendBroadcast(intent)
+    }
+
     companion object {
-        const val ACTION_OCR_RESULT = "org.p2er1n.termcat.OCR_RESULT"
         const val ACTION_CAPTURE_CANCELLED = "org.p2er1n.termcat.CAPTURE_CANCELLED"
         const val ACTION_CAPTURE_DONE = "org.p2er1n.termcat.CAPTURE_DONE"
+        const val ACTION_LLM_RESULT = "org.p2er1n.termcat.LLM_RESULT"
+        const val ACTION_LLM_ERROR = "org.p2er1n.termcat.LLM_ERROR"
+        const val ACTION_OVERLAY_STATUS = "org.p2er1n.termcat.OVERLAY_STATUS"
         const val EXTRA_OCR_TEXT = "extra_ocr_text"
+        const val EXTRA_LLM_TEXT = "extra_llm_text"
+        const val EXTRA_LLM_ERROR = "extra_llm_error"
+        const val EXTRA_OVERLAY_RUNNING = "extra_overlay_running"
         private const val MAX_RESULT_CHARS = 1200
     }
 }
