@@ -1,6 +1,9 @@
 package org.p2er1n.termcat
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -10,13 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -28,16 +26,31 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             TermCatTheme {
-                SimpleInputScreen()
+                FloatingWindowEntry(
+                    onStartOverlay = { requestOrStartOverlay() }
+                )
             }
         }
+    }
+
+    private fun requestOrStartOverlay() {
+        if (Settings.canDrawOverlays(this)) {
+            startService(Intent(this, FloatingWindowService::class.java))
+            return
+        }
+
+        val intent = Intent(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            Uri.parse("package:$packageName")
+        )
+        startActivity(intent)
     }
 }
 
 @Composable
-fun SimpleInputScreen() {
-    var text by rememberSaveable { mutableStateOf("") }
-
+fun FloatingWindowEntry(
+    onStartOverlay: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -45,28 +58,28 @@ fun SimpleInputScreen() {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
-            label = { Text(text = "Input") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+        Text(
+            text = "Floating Window",
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.padding(bottom = 16.dp)
         )
         Button(
-            onClick = { },
+            onClick = onStartOverlay,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 16.dp)
+                .padding(top = 8.dp)
         ) {
-            Text(text = "Submit", style = MaterialTheme.typography.labelLarge)
+            Text(text = "Show Floating Window", style = MaterialTheme.typography.labelLarge)
         }
     }
 }
 
 @Preview(showBackground = true)
 @Composable
-private fun SimpleInputScreenPreview() {
+private fun FloatingWindowEntryPreview() {
     TermCatTheme {
-        SimpleInputScreen()
+        FloatingWindowEntry(
+            onStartOverlay = {}
+        )
     }
 }
