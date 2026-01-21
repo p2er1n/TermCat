@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/overlay_card"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:layout_margin="12dp"
@@ -20,22 +21,22 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="TermCat"
+            android:text="TermCat Capture"
             android:textAppearance="?attr/textAppearanceTitleMedium" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:text="Floating window ready"
+            android:text="Tap to capture terms"
             android:textAppearance="?attr/textAppearanceBodyMedium" />
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/overlay_close"
+            android:id="@+id/overlay_capture"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="Close"
+            android:text="Capture"
             app:cornerRadius="12dp" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

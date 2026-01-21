@@ -12,7 +12,9 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.Toast
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
 
 class FloatingWindowService : Service() {
     private lateinit var windowManager: WindowManager
@@ -44,8 +46,11 @@ class FloatingWindowService : Service() {
         val themedContext = ContextThemeWrapper(this, R.style.Theme_TermCat)
         overlayView = LayoutInflater.from(themedContext)
             .inflate(R.layout.overlay_floating_window, null, false)
-        overlayView.findViewById<MaterialButton>(R.id.overlay_close).setOnClickListener {
-            stopSelf()
+        overlayView.findViewById<MaterialCardView>(R.id.overlay_card).setOnClickListener {
+            handleCaptureClick()
+        }
+        overlayView.findViewById<MaterialButton>(R.id.overlay_capture).setOnClickListener {
+            handleCaptureClick()
         }
 
         attachDragHandler(overlayView)
@@ -86,5 +91,11 @@ class FloatingWindowService : Service() {
                 else -> false
             }
         }
+    }
+
+    private fun handleCaptureClick() {
+        val intent = Intent(this, CapturePermissionActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+        startActivity(intent)
     }
 }
