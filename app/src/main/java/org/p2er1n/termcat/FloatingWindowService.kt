@@ -33,6 +33,7 @@ class FloatingWindowService : Service() {
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        AppPrefs.setOverlayRunning(this, true)
 
         val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -99,6 +100,7 @@ class FloatingWindowService : Service() {
             windowManager.removeView(resultView)
         }
         unregisterResultReceiver()
+        AppPrefs.setOverlayRunning(this, false)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

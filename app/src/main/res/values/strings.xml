@@ -9,4 +9,16 @@
     <string name="result_processing">Analyzing captured text...</string>
     <string name="result_empty">No text detected.</string>
     <string name="result_copied">Copied</string>
+    <string name="home_title">TermCat</string>
+    <string name="home_subtitle">Capture terms in any app and highlight risky clauses instantly.</string>
+    <string name="home_primary_action">Enable Floating Window</string>
+    <string name="home_manage_permission">Manage overlay permission</string>
+    <string name="home_status_title">Status</string>
+    <string name="home_status_permission">Overlay permission</string>
+    <string name="home_status_permission_granted">Granted</string>
+    <string name="home_status_permission_denied">Not granted</string>
+    <string name="home_status_window">Floating window</string>
+    <string name="home_status_window_running">Running</string>
+    <string name="home_status_window_stopped">Not running</string>
+    <string name="home_footer">Local OCR supports Chinese and English. Screenshots stay on device.</string>
 </resources>
