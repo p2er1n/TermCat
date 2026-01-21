@@ -29,6 +29,9 @@
             android:exported="false"
             android:excludeFromRecents="true"
             android:noHistory="true"
+            android:finishOnTaskLaunch="true"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
             android:theme="@style/Theme.TermCat.Transparent" />
         <service
             android:name=".FloatingWindowService"

@@ -16,6 +16,8 @@ class CapturePermissionActivity : ComponentActivity() {
                     putExtra(ScreenshotService.EXTRA_RESULT_DATA, result.data)
                 }
                 startForegroundService(serviceIntent)
+            } else {
+                sendCaptureCancelled()
             }
             moveTaskToBack(true)
             finish()
@@ -28,5 +30,12 @@ class CapturePermissionActivity : ComponentActivity() {
             getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         projectionLauncher.launch(projectionManager.createScreenCaptureIntent())
         overridePendingTransition(0, 0)
+    }
+
+    private fun sendCaptureCancelled() {
+        val intent = Intent(FloatingWindowService.ACTION_CAPTURE_CANCELLED).apply {
+            setPackage(packageName)
+        }
+        sendBroadcast(intent)
     }
 }

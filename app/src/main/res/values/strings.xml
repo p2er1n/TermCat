@@ -3,4 +3,10 @@
     <string name="capture_channel_name">Screen capture</string>
     <string name="capture_notification_title">Capturing screen</string>
     <string name="capture_notification_text">Processing current screen</string>
+    <string name="ocr_done">OCR finished</string>
+    <string name="ocr_failed">OCR failed</string>
+    <string name="result_title">Potential issues</string>
+    <string name="result_processing">Analyzing captured text...</string>
+    <string name="result_empty">No text detected.</string>
+    <string name="result_copied">Copied</string>
 </resources>

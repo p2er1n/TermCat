@@ -22,8 +22,15 @@ import android.os.IBinder
 import android.os.Looper
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import com.google.android.gms.tasks.Tasks
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognizer
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.TimeUnit
 
 class ScreenshotService : Service() {
     private val handlerThread = HandlerThread("ScreenCapture")
@@ -31,6 +38,12 @@ class ScreenshotService : Service() {
     private var mediaProjection: MediaProjection? = null
     private var imageReader: ImageReader? = null
     private var virtualDisplay: VirtualDisplay? = null
+    private val latinRecognizer: TextRecognizer by lazy {
+        TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+    }
+    private val chineseRecognizer: TextRecognizer by lazy {
+        TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+    }
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
             Handler(Looper.getMainLooper()).post {
@@ -117,8 +130,17 @@ class ScreenshotService : Service() {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
         }
 
+        sendCaptureDone()
+        val ocrText = runOcr(bitmap)
+        if (ocrText.isNotEmpty()) {
+            val textFile = File(cacheDir, "capture_${System.currentTimeMillis()}.txt")
+            textFile.writeText(ocrText)
+        }
+        sendOcrBroadcast(ocrText)
+
         Handler(Looper.getMainLooper()).post {
-            Toast.makeText(this, "Saved: ${outputFile.absolutePath}", Toast.LENGTH_SHORT).show()
+            val messageRes = if (ocrText.isNotEmpty()) R.string.ocr_done else R.string.ocr_failed
+            Toast.makeText(this, getString(messageRes), Toast.LENGTH_SHORT).show()
         }
 
         stopSelf()
@@ -133,6 +155,43 @@ class ScreenshotService : Service() {
         mediaProjection?.stop()
         mediaProjection = null
         stopForeground(STOP_FOREGROUND_REMOVE)
+    }
+
+    private fun runOcr(bitmap: Bitmap): String {
+        val image = InputImage.fromBitmap(bitmap, 0)
+        return try {
+            val latinText = Tasks.await(
+                latinRecognizer.process(image),
+                OCR_TIMEOUT_SECONDS,
+                TimeUnit.SECONDS
+            ).text
+            val chineseText = Tasks.await(
+                chineseRecognizer.process(image),
+                OCR_TIMEOUT_SECONDS,
+                TimeUnit.SECONDS
+            ).text
+            val combined = listOf(latinText, chineseText)
+                .filter { it.isNotBlank() }
+                .distinct()
+            combined.joinToString(separator = "\n")
+        } catch (exception: Exception) {
+            ""
+        }
+    }
+
+    private fun sendOcrBroadcast(text: String) {
+        val intent = Intent(FloatingWindowService.ACTION_OCR_RESULT).apply {
+            setPackage(packageName)
+            putExtra(FloatingWindowService.EXTRA_OCR_TEXT, text)
+        }
+        sendBroadcast(intent)
+    }
+
+    private fun sendCaptureDone() {
+        val intent = Intent(FloatingWindowService.ACTION_CAPTURE_DONE).apply {
+            setPackage(packageName)
+        }
+        sendBroadcast(intent)
     }
 
     private fun createNotification(): Notification {
@@ -175,5 +234,6 @@ class ScreenshotService : Service() {
         const val EXTRA_RESULT_CODE = "extra_result_code"
         const val EXTRA_RESULT_DATA = "extra_result_data"
         private const val NOTIFICATION_ID = 201
+        private const val OCR_TIMEOUT_SECONDS = 8L
     }
 }
