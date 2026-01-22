@@ -23,6 +23,10 @@ import com.google.android.material.card.MaterialCardView
 import android.widget.TextView
 import android.text.method.LinkMovementMethod
 import io.noties.markwon.Markwon
+import android.view.accessibility.AccessibilityManager
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.provider.Settings
+import android.content.ComponentName
 
 class FloatingWindowService : Service() {
     private lateinit var windowManager: WindowManager
@@ -36,6 +40,15 @@ class FloatingWindowService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        if (!isScrollServiceEnabled()) {
+            Toast.makeText(
+                this,
+                getString(R.string.accessibility_scroll_required),
+                Toast.LENGTH_LONG
+            ).show()
+            stopSelf()
+            return
+        }
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         sendOverlayStatusBroadcast(true)
         AppPrefs.setOverlayRunning(this, true)
@@ -353,6 +366,22 @@ class FloatingWindowService : Service() {
             action = ScreenshotService.ACTION_STOP_CAPTURE
         }
         startService(intent)
+    }
+
+    private fun isScrollServiceEnabled(): Boolean {
+        val manager = getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+        val enabled = manager.getEnabledAccessibilityServiceList(
+            AccessibilityServiceInfo.FEEDBACK_ALL_MASK
+        )
+        val id = ComponentName(this, AccessibilityScrollService::class.java).flattenToString()
+        if (enabled.any { it.id == id }) {
+            return true
+        }
+        val enabledServices = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ).orEmpty()
+        return enabledServices.split(':').any { it.equals(id, ignoreCase = true) }
     }
 
 

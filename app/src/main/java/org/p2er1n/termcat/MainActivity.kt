@@ -50,6 +50,7 @@ import android.content.IntentFilter
 import android.content.ComponentName
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.view.accessibility.AccessibilityManager
+import android.widget.Toast
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,6 +68,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestOrStartOverlay() {
+        if (!isScrollServiceEnabled(this)) {
+            Toast.makeText(
+                this,
+                getString(R.string.accessibility_scroll_required),
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
         if (Settings.canDrawOverlays(this)) {
             startService(Intent(this, FloatingWindowService::class.java))
             return
@@ -191,7 +200,8 @@ fun HomeScreen(
             onClick = if (overlayRunning) onStopOverlay else onStartOverlay,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp)
+                .height(52.dp),
+            enabled = overlayRunning || accessibilityEnabled
         ) {
             val label = if (overlayRunning) {
                 stringResource(R.string.home_primary_action_stop)
