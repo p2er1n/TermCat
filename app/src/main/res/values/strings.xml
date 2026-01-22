@@ -11,7 +11,10 @@
     <string name="result_progress_ocr">OCR %1$d/%2$d</string>
     <string name="result_progress_llm">LLM analyzing...</string>
     <string name="result_empty">No text detected.</string>
+    <string name="result_copy">Copy</string>
     <string name="result_copied">Copied</string>
+    <string name="result_view_more">View more</string>
+    <string name="result_close">Close</string>
     <string name="home_title">TermCat</string>
     <string name="home_subtitle">Capture terms in any app and highlight risky clauses instantly.</string>
     <string name="home_primary_action_start">Enable Floating Window</string>
@@ -22,6 +25,10 @@
     <string name="accessibility_enabled">Enabled</string>
     <string name="accessibility_disabled">Disabled</string>
     <string name="accessibility_open_settings">Open accessibility settings</string>
+    <string name="ocr_engine_title">OCR engine</string>
+    <string name="ocr_engine_desc">Choose the OCR engine used during capture.</string>
+    <string name="ocr_engine_mlkit">ML Kit (default)</string>
+    <string name="ocr_engine_paddle">PaddleOCR (models required)</string>
     <string name="home_status_title">Status</string>
     <string name="home_status_permission">Overlay permission</string>
     <string name="home_status_permission_granted">Granted</string>
@@ -47,6 +54,7 @@
     <string name="llm_api_key_placeholder">sk-****</string>
     <string name="llm_api_key_error">API key must be at least 8 characters.</string>
     <string name="llm_helper_text">Your key is stored locally. Requests are sent during analysis.</string>
+    <string name="llm_system_prompt">You are a legal risk assistant. Analyze the text and highlight risky clauses.\nReturn concise bullet points. If no risks, say "No obvious risks found."</string>
     <string name="llm_error_config">LLM configuration is incomplete.</string>
     <string name="llm_error_response">LLM returned an empty response.</string>
     <string name="llm_error_generic">LLM request failed.</string>

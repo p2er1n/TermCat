@@ -14,6 +14,9 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+        }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -61,6 +64,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.android)
     implementation(libs.mlkit.text.recognition)
     implementation(libs.mlkit.text.recognition.chinese)
+    implementation("com.github.equationl.paddleocr4android:paddleocr4android:v1.2.9")
     implementation(libs.openai.java)
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)

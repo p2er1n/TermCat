@@ -21,6 +21,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -107,6 +108,7 @@ fun HomeScreen(
     var llmEndpoint by remember { mutableStateOf(AppPrefs.getLlmEndpoint(context)) }
     var llmApiKey by remember { mutableStateOf(AppPrefs.getLlmApiKey(context)) }
     var llmModel by remember { mutableStateOf(AppPrefs.getLlmModel(context)) }
+    var ocrEngine by remember { mutableStateOf(AppPrefs.getOcrEngine(context)) }
     var maxCapturePagesText by remember {
         mutableStateOf(AppPrefs.getMaxCapturePages(context).toString())
     }
@@ -118,6 +120,7 @@ fun HomeScreen(
         llmEndpoint = AppPrefs.getLlmEndpoint(context)
         llmApiKey = AppPrefs.getLlmApiKey(context)
         llmModel = AppPrefs.getLlmModel(context)
+        ocrEngine = AppPrefs.getOcrEngine(context)
         maxCapturePagesText = AppPrefs.getMaxCapturePages(context).toString()
     }
 
@@ -131,6 +134,10 @@ fun HomeScreen(
 
     LaunchedEffect(llmModel) {
         AppPrefs.setLlmModel(context, llmModel)
+    }
+
+    LaunchedEffect(ocrEngine) {
+        AppPrefs.setOcrEngine(context, ocrEngine)
     }
 
     LaunchedEffect(maxCapturePagesText) {
@@ -199,6 +206,10 @@ fun HomeScreen(
         AccessibilityToggle(
             enabled = accessibilityEnabled,
             onOpenAccessibility = onOpenAccessibility
+        )
+        OcrEngineCard(
+            selected = ocrEngine,
+            onSelect = { ocrEngine = it }
         )
         CaptureSettingsCard(
             maxCapturePagesText = maxCapturePagesText,
@@ -384,6 +395,59 @@ private fun AccessibilityToggle(
                 Text(text = stringResource(R.string.accessibility_open_settings))
             }
         }
+    }
+}
+
+@Composable
+private fun OcrEngineCard(
+    selected: String,
+    onSelect: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.ocr_engine_title),
+                style = MaterialTheme.typography.titleMedium
+            )
+            Text(
+                text = stringResource(R.string.ocr_engine_desc),
+                style = MaterialTheme.typography.bodySmall
+            )
+            OcrEngineOption(
+                label = stringResource(R.string.ocr_engine_mlkit),
+                selected = selected == AppPrefs.OCR_ENGINE_MLKIT,
+                onClick = { onSelect(AppPrefs.OCR_ENGINE_MLKIT) }
+            )
+            OcrEngineOption(
+                label = stringResource(R.string.ocr_engine_paddle),
+                selected = selected == AppPrefs.OCR_ENGINE_PADDLE,
+                onClick = { onSelect(AppPrefs.OCR_ENGINE_PADDLE) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun OcrEngineOption(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = label, style = MaterialTheme.typography.bodyMedium)
+        RadioButton(selected = selected, onClick = onClick)
     }
 }
 

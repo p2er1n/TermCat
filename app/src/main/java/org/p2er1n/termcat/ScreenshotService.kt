@@ -56,6 +56,9 @@ class ScreenshotService : Service() {
     private val chineseRecognizer: TextRecognizer by lazy {
         TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
     }
+    private val paddleOcrEngine: PaddleOcrEngine by lazy {
+        PaddleOcrEngine(this)
+    }
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
             Handler(Looper.getMainLooper()).post {
@@ -396,6 +399,9 @@ class ScreenshotService : Service() {
     }
 
     private fun runOcr(bitmap: Bitmap): String {
+        if (AppPrefs.getOcrEngine(this) == AppPrefs.OCR_ENGINE_PADDLE) {
+            return paddleOcrEngine.run(bitmap)
+        }
         val image = InputImage.fromBitmap(bitmap, 0)
         return try {
             val latinText = Tasks.await(
@@ -435,6 +441,8 @@ class ScreenshotService : Service() {
             sendLlmStatus(getString(R.string.result_progress_llm))
             val client = createOpenAiClient(apiKey, endpoint)
             val params = buildLlmParams(model, ocrText)
+            val systemPrompt = getString(R.string.llm_system_prompt)
+            logLlmRequest(model, endpoint, systemPrompt, ocrText)
             val response = client.chat().completions().create(params)
             val content = extractContent(response)
             if (content.isBlank()) {
@@ -455,10 +463,7 @@ class ScreenshotService : Service() {
     }
 
     private fun buildLlmParams(model: String, ocrText: String): ChatCompletionCreateParams {
-        val systemPrompt = """
-            You are a legal risk assistant. Analyze the text and highlight risky clauses.
-            Return concise bullet points. If no risks, say "No obvious risks found."
-        """.trimIndent()
+        val systemPrompt = getString(R.string.llm_system_prompt)
         val systemMessage = ChatCompletionSystemMessageParam.builder()
             .content(ChatCompletionSystemMessageParam.Content.ofText(systemPrompt))
             .build()
@@ -491,6 +496,33 @@ class ScreenshotService : Service() {
             trimmed.substring(0, v1Index + 3)
         } else {
             trimmed
+        }
+    }
+
+    private fun logLlmRequest(model: String, endpoint: String, systemPrompt: String, ocrText: String) {
+        Log.d(
+            TAG,
+            "LLM request: endpoint=${normalizeBaseUrl(endpoint)} model=$model " +
+                "systemPromptLength=${systemPrompt.length} ocrChars=${ocrText.length}"
+        )
+        logChunked("LLM systemPrompt", systemPrompt)
+        logChunked("LLM ocrText", ocrText)
+    }
+
+    private fun logChunked(label: String, text: String) {
+        if (text.isEmpty()) {
+            Log.d(TAG, "$label: <empty>")
+            return
+        }
+        val totalChunks = (text.length + LOG_CHUNK_SIZE - 1) / LOG_CHUNK_SIZE
+        var index = 0
+        var chunk = 1
+        while (index < text.length) {
+            val end = (index + LOG_CHUNK_SIZE).coerceAtMost(text.length)
+            val part = text.substring(index, end).replace('\n', ' ')
+            Log.d(TAG, "$label [$chunk/$totalChunks]: $part")
+            index = end
+            chunk += 1
         }
     }
 
@@ -584,5 +616,6 @@ class ScreenshotService : Service() {
         private const val NO_CHANGE_HITS_TO_STOP = 2
         private const val MAX_LOG_CHARS = 4000
         private const val TAG = "ScreenshotService"
+        private const val LOG_CHUNK_SIZE = 800
     }
 }

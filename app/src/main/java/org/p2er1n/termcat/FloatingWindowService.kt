@@ -29,6 +29,7 @@ class FloatingWindowService : Service() {
     private lateinit var layoutParams: WindowManager.LayoutParams
     private lateinit var resultParams: WindowManager.LayoutParams
     private var receiverRegistered = false
+    private var lastResultFull = ""
 
     override fun onCreate() {
         super.onCreate()
@@ -84,6 +85,9 @@ class FloatingWindowService : Service() {
         }
         resultView.findViewById<MaterialButton>(R.id.result_copy).setOnClickListener {
             copyResult()
+        }
+        resultView.findViewById<MaterialButton>(R.id.result_more).setOnClickListener {
+            openFullResult()
         }
 
         attachDragHandler(overlayView)
@@ -142,6 +146,7 @@ class FloatingWindowService : Service() {
     }
 
     private fun showProcessing() {
+        lastResultFull = ""
         resultView.findViewById<TextView>(R.id.result_title).text =
             getString(R.string.result_title)
         resultView.findViewById<TextView>(R.id.result_body).text =
@@ -149,6 +154,7 @@ class FloatingWindowService : Service() {
         resultView.findViewById<TextView>(R.id.result_progress).text =
             getString(R.string.result_progress_preparing)
         resultView.findViewById<MaterialButton>(R.id.result_copy).isEnabled = false
+        resultView.findViewById<MaterialButton>(R.id.result_more).isEnabled = false
         resultView.visibility = View.VISIBLE
         overlayView.visibility = View.VISIBLE
     }
@@ -173,6 +179,7 @@ class FloatingWindowService : Service() {
         resultView.findViewById<TextView>(R.id.result_body).text = body
         resultView.findViewById<TextView>(R.id.result_progress).text = ""
         resultView.findViewById<MaterialButton>(R.id.result_copy).isEnabled = text.isNotBlank()
+        resultView.findViewById<MaterialButton>(R.id.result_more).isEnabled = text.isNotBlank()
         resultView.visibility = View.VISIBLE
         overlayView.visibility = View.VISIBLE
     }
@@ -198,6 +205,16 @@ class FloatingWindowService : Service() {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("TermCat OCR", text))
         Toast.makeText(this, getString(R.string.result_copied), Toast.LENGTH_SHORT).show()
+    }
+
+    private fun openFullResult() {
+        if (lastResultFull.isBlank()) {
+            return
+        }
+        val intent = Intent(this, ResultDetailActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            .putExtra(ResultDetailActivity.EXTRA_RESULT_TEXT, lastResultFull)
+        startActivity(intent)
     }
 
     private fun registerResultReceiver() {
@@ -245,6 +262,7 @@ class FloatingWindowService : Service() {
                 }
                 ACTION_LLM_RESULT -> {
                     val rawText = intent.getStringExtra(EXTRA_LLM_TEXT).orEmpty()
+                    lastResultFull = rawText
                     val trimmed = rawText.take(MAX_RESULT_CHARS)
                     showResult(trimmed)
                 }
@@ -258,6 +276,7 @@ class FloatingWindowService : Service() {
                             append(ocr)
                         }
                     }
+                    lastResultFull = combined
                     showResult(combined.take(MAX_RESULT_CHARS))
                 }
                 ACTION_CAPTURE_CANCELLED -> {

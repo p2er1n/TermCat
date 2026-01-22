@@ -58,18 +58,26 @@
                 android:orientation="horizontal">
 
                 <com.google.android.material.button.MaterialButton
+                    android:id="@+id/result_more"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/result_view_more" />
+
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/result_close"
                     style="?attr/materialButtonOutlinedStyle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Close" />
+                    android:layout_marginStart="8dp"
+                    android:text="@string/result_close" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/result_copy"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
-                    android:text="Copy"
+                    android:text="@string/result_copy"
                     app:cornerRadius="12dp" />
             </LinearLayout>
         </LinearLayout>
