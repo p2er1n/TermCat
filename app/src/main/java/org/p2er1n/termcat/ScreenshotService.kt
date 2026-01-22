@@ -46,7 +46,7 @@ import java.util.concurrent.TimeUnit
 import android.util.Log
 import android.os.ResultReceiver
 import androidx.appcompat.app.AppCompatDelegate
-import androidx.core.os.LocaleListCompat
+import androidx.annotation.RawRes
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
 
@@ -546,19 +546,14 @@ class ScreenshotService : Service() {
     }
 
     private fun buildLlmParams(model: String, ocrText: String): ChatCompletionCreateParams {
-        val systemPrompt = loadSystemPromptWithLanguage()
+        val systemPrompt = loadSystemPrompt()
         val systemMessage = ChatCompletionSystemMessageParam.builder()
             .content(ChatCompletionSystemMessageParam.Content.ofText(systemPrompt))
             .build()
-        val userLanguageHint = if (isAppLanguageChinese()) {
-            "请主要使用中文回复，仅在引用原文段落时保留其原始语言。"
-        } else {
-            "Please reply mainly in English, and only keep other languages when quoting original passages."
-        }
         val userMessage = ChatCompletionUserMessageParam.builder()
             .content(
                 ChatCompletionUserMessageParam.Content.ofText(
-                    "$userLanguageHint\nThe terms content is provided below. It is enclosed in triple quotes.\n\"\"\"\n$ocrText\n\"\"\""
+                    loadUserPrompt(ocrText)
                 )
             )
             .build()
@@ -591,15 +586,28 @@ class ScreenshotService : Service() {
         }
     }
 
-    private fun loadSystemPromptWithLanguage(): String {
-        val input = resources.openRawResource(R.raw.llm_system_prompt)
-        val base = input.bufferedReader().use { it.readText() }.trimEnd()
-        val languageHint = if (isAppLanguageChinese()) {
-            "请主要使用中文回复，仅在引用原文段落时保留其原始语言。"
+    private fun loadSystemPrompt(): String {
+        val resId = if (isAppLanguageChinese()) {
+            R.raw.llm_system_prompt_zh
         } else {
-            "Please reply mainly in English, and only keep other languages when quoting original passages."
+            R.raw.llm_system_prompt_en
         }
-        return "$base\n\n$languageHint"
+        return readRawText(resId).trimEnd()
+    }
+
+    private fun loadUserPrompt(ocrText: String): String {
+        val resId = if (isAppLanguageChinese()) {
+            R.raw.llm_user_prompt_zh
+        } else {
+            R.raw.llm_user_prompt_en
+        }
+        val template = readRawText(resId)
+        return template.replace("{{TERMS}}", ocrText)
+    }
+
+    private fun readRawText(@RawRes resId: Int): String {
+        val input = resources.openRawResource(resId)
+        return input.bufferedReader().use { it.readText() }
     }
 
     private fun isAppLanguageChinese(): Boolean {

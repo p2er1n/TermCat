@@ -1,0 +1,5 @@
+Please reply mainly in English, and only keep other languages when quoting original passages.
+The terms content is provided below. It is enclosed in triple quotes.
+"""
+{{TERMS}}
+"""

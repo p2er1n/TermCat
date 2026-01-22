@@ -126,6 +126,8 @@ class FloatingWindowService : Service() {
         copyButton.setOnClickListener {
             copyResult()
         }
+        resultView.findViewById<TextView>(R.id.result_more_overlay_text).text =
+            getLocalizedString(R.string.result_view_more)
         moreOverlay.setOnClickListener { openFullResult() }
 
         attachDragHandler(overlayView)
@@ -327,6 +329,8 @@ class FloatingWindowService : Service() {
         titleView.text = getLocalizedString(R.string.result_title)
         val copyButton = resultView.findViewById<MaterialButton>(R.id.result_copy)
         copyButton.text = getLocalizedString(R.string.result_copy)
+        resultView.findViewById<TextView>(R.id.result_more_overlay_text).text =
+            getLocalizedString(R.string.result_view_more)
         val bodyView = resultView.findViewById<TextView>(R.id.result_body)
         when (bodyKind) {
             BodyKind.PROCESSING -> bodyView.text = getLocalizedString(R.string.result_processing)
