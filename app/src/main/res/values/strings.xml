@@ -13,7 +13,7 @@
     <string name="result_empty">No text detected.</string>
     <string name="result_copy">Copy</string>
     <string name="result_copied">Copied</string>
-    <string name="result_view_more">View more</string>
+    <string name="result_view_more">View full</string>
     <string name="result_close">Stop</string>
     <string name="home_title">TermCat</string>
     <string name="home_subtitle">Capture terms in any app and highlight risky clauses instantly.</string>

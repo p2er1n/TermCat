@@ -36,19 +36,45 @@
                 android:text="Preparing OCR..."
                 android:textAppearance="?attr/textAppearanceBodySmall" />
 
-            <ScrollView
+            <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:maxHeight="220dp">
+                android:layout_height="180dp"
+                android:layout_marginTop="8dp">
 
-                <TextView
-                    android:id="@+id/result_body"
+                <ScrollView
+                    android:id="@+id/result_scroll"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Analyzing captured text..."
-                    android:textAppearance="?attr/textAppearanceBodyMedium" />
-            </ScrollView>
+                    android:layout_height="match_parent"
+                    android:overScrollMode="ifContentScrolls">
+
+                    <TextView
+                        android:id="@+id/result_body"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingBottom="48dp"
+                        android:text="Analyzing captured text..."
+                        android:textAppearance="?attr/textAppearanceBodyMedium" />
+                </ScrollView>
+
+                <LinearLayout
+                    android:id="@+id/result_more_overlay"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_gravity="bottom"
+                    android:background="@drawable/result_fade_bottom"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/result_more_overlay_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/result_view_more"
+                        android:textAppearance="?attr/textAppearanceLabelLarge" />
+                </LinearLayout>
+            </FrameLayout>
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -56,13 +82,6 @@
                 android:layout_marginTop="12dp"
                 android:gravity="end"
                 android:orientation="horizontal">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/result_more"
-                    style="?attr/materialButtonOutlinedStyle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/result_view_more" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/result_close"

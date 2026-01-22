@@ -80,15 +80,14 @@ class FloatingWindowService : Service() {
         resultView = LayoutInflater.from(themedContext)
             .inflate(R.layout.overlay_result_sheet, null, false)
         resultView.visibility = View.GONE
+        val moreOverlay = resultView.findViewById<View>(R.id.result_more_overlay)
         resultView.findViewById<MaterialButton>(R.id.result_close).setOnClickListener {
             stopCaptureAndHide()
         }
         resultView.findViewById<MaterialButton>(R.id.result_copy).setOnClickListener {
             copyResult()
         }
-        resultView.findViewById<MaterialButton>(R.id.result_more).setOnClickListener {
-            openFullResult()
-        }
+        moreOverlay.setOnClickListener { openFullResult() }
 
         attachDragHandler(overlayView)
         windowManager.addView(overlayView, layoutParams)
@@ -154,7 +153,8 @@ class FloatingWindowService : Service() {
         resultView.findViewById<TextView>(R.id.result_progress).text =
             getString(R.string.result_progress_preparing)
         resultView.findViewById<MaterialButton>(R.id.result_copy).isEnabled = false
-        resultView.findViewById<MaterialButton>(R.id.result_more).isEnabled = false
+        resultView.findViewById<View>(R.id.result_more_overlay).isEnabled = false
+        resultView.findViewById<View>(R.id.result_more_overlay).visibility = View.GONE
         resultView.visibility = View.VISIBLE
         overlayView.visibility = View.VISIBLE
     }
@@ -162,12 +162,14 @@ class FloatingWindowService : Service() {
     private fun updateOcrProgress(done: Int, total: Int) {
         resultView.findViewById<TextView>(R.id.result_progress).text =
             getString(R.string.result_progress_ocr, done, total)
+        resultView.findViewById<View>(R.id.result_more_overlay).visibility = View.GONE
         resultView.visibility = View.VISIBLE
         overlayView.visibility = View.VISIBLE
     }
 
     private fun updateLlmStatus(status: String) {
         resultView.findViewById<TextView>(R.id.result_progress).text = status
+        resultView.findViewById<View>(R.id.result_more_overlay).visibility = View.GONE
         resultView.visibility = View.VISIBLE
         overlayView.visibility = View.VISIBLE
     }
@@ -179,7 +181,9 @@ class FloatingWindowService : Service() {
         resultView.findViewById<TextView>(R.id.result_body).text = body
         resultView.findViewById<TextView>(R.id.result_progress).text = ""
         resultView.findViewById<MaterialButton>(R.id.result_copy).isEnabled = text.isNotBlank()
-        resultView.findViewById<MaterialButton>(R.id.result_more).isEnabled = text.isNotBlank()
+        resultView.findViewById<View>(R.id.result_more_overlay).isEnabled = text.isNotBlank()
+        resultView.findViewById<View>(R.id.result_more_overlay).visibility =
+            if (text.isNotBlank()) View.VISIBLE else View.GONE
         resultView.visibility = View.VISIBLE
         overlayView.visibility = View.VISIBLE
     }
