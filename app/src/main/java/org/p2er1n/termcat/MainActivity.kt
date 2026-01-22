@@ -55,6 +55,19 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.runtime.remember
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import org.p2er1n.termcat.ui.theme.TermCatTheme
 import android.app.ActivityManager
 import android.content.Context
@@ -243,16 +256,6 @@ fun HomeScreen(
                         )
                     )
                     SettingToggleRow(
-                        label = stringResource(R.string.home_status_window),
-                        description = stringResource(R.string.home_primary_action_start),
-                        checked = overlayRunning,
-                        enabled = overlayRunning || accessibilityEnabled,
-                        onToggle = { enabled ->
-                            if (enabled) onStartOverlay() else onStopOverlay()
-                        },
-                        successGreen = successGreen
-                    )
-                    SettingToggleRow(
                         label = stringResource(R.string.home_status_permission),
                         description = stringResource(R.string.home_manage_permission),
                         checked = overlayEnabled,
@@ -268,6 +271,59 @@ fun HomeScreen(
                         onToggle = { onOpenAccessibility() },
                         successGreen = successGreen
                     )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(64.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.home_status_window),
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontFamily = FontFamily.Serif,
+                                    color = accentColor
+                                )
+                            )
+                            Text(
+                                text = stringResource(R.string.home_primary_action_start),
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Serif,
+                                    color = Color(0xFF4B5563)
+                                )
+                            )
+                        }
+                        val enabled = overlayRunning || accessibilityEnabled
+                        val iconAlpha = if (overlayRunning) 1f else 0.35f
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val pressed by interactionSource.collectIsPressedAsState()
+                        val scale by animateFloatAsState(
+                            targetValue = if (pressed) 0.92f else 1f,
+                            animationSpec = tween(durationMillis = 120),
+                            label = "overlayIconScale"
+                        )
+                        Image(
+                            painter = painterResource(R.drawable.overlay_icon),
+                            contentDescription = stringResource(R.string.home_primary_action_start),
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .alpha(iconAlpha)
+                                .scale(scale)
+                                .clickable(
+                                    enabled = enabled,
+                                    interactionSource = interactionSource,
+                                    indication = null
+                                ) {
+                                    if (overlayRunning) {
+                                        onStopOverlay()
+                                    } else {
+                                        onStartOverlay()
+                                    }
+                                }
+                        )
+                    }
                 }
             }
 
