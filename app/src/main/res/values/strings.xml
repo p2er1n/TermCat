@@ -54,7 +54,6 @@
     <string name="llm_api_key_placeholder">sk-****</string>
     <string name="llm_api_key_error">API key must be at least 8 characters.</string>
     <string name="llm_helper_text">Your key is stored locally. Requests are sent during analysis.</string>
-    <string name="llm_system_prompt">You are a legal risk assistant. Analyze the text and highlight risky clauses.\nReturn concise bullet points. If no risks, say "No obvious risks found."</string>
     <string name="llm_error_config">LLM configuration is incomplete.</string>
     <string name="llm_error_response">LLM returned an empty response.</string>
     <string name="llm_error_generic">LLM request failed.</string>

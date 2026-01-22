@@ -173,7 +173,12 @@ class ScreenshotService : Service() {
         var stuckHits = 0
         var noChangeHits = 0
         var lastSignature: Long? = null
+        var hasScrolled = false
         Log.d(TAG, "captureBitmaps: canAutoScroll=$canAutoScroll maxPages=$maxPages")
+
+        if (canAutoScroll) {
+            AccessibilityScrollService.resetScrollState()
+        }
 
         for (index in 0 until maxPages) {
             Log.d(TAG, "captureBitmaps: page ${index + 1}/$maxPages")
@@ -202,14 +207,14 @@ class ScreenshotService : Service() {
             }
 
             if (canAutoScroll && index < maxPages - 1) {
-                if (AccessibilityScrollService.isAtScrollEnd()) {
+                if (hasScrolled && AccessibilityScrollService.isAtScrollEnd()) {
                     endHits += 1
                     Log.d(TAG, "Auto-scroll end signal before scroll: hit $endHits.")
                     if (endHits >= 2) {
                         Log.d(TAG, "Auto-scroll stopped: reached scroll end.")
                         break
                     }
-                } else {
+                } else if (!hasScrolled) {
                     endHits = 0
                 }
                 val beforeEventTime = AccessibilityScrollService.getLastScrollEventTime()
@@ -219,6 +224,7 @@ class ScreenshotService : Service() {
                     Log.d(TAG, "Auto-scroll stopped: performScrollDown returned false.")
                     break
                 }
+                hasScrolled = true
                 AccessibilityScrollService.waitForUiToSettle()
                 val scrollState = AccessibilityScrollService.waitForScrollState(
                     beforeEventTime,
@@ -441,7 +447,7 @@ class ScreenshotService : Service() {
             sendLlmStatus(getString(R.string.result_progress_llm))
             val client = createOpenAiClient(apiKey, endpoint)
             val params = buildLlmParams(model, ocrText)
-            val systemPrompt = getString(R.string.llm_system_prompt)
+            val systemPrompt = loadSystemPrompt()
             logLlmRequest(model, endpoint, systemPrompt, ocrText)
             val response = client.chat().completions().create(params)
             val content = extractContent(response)
@@ -463,7 +469,7 @@ class ScreenshotService : Service() {
     }
 
     private fun buildLlmParams(model: String, ocrText: String): ChatCompletionCreateParams {
-        val systemPrompt = getString(R.string.llm_system_prompt)
+        val systemPrompt = loadSystemPrompt()
         val systemMessage = ChatCompletionSystemMessageParam.builder()
             .content(ChatCompletionSystemMessageParam.Content.ofText(systemPrompt))
             .build()
@@ -497,6 +503,11 @@ class ScreenshotService : Service() {
         } else {
             trimmed
         }
+    }
+
+    private fun loadSystemPrompt(): String {
+        val input = resources.openRawResource(R.raw.llm_system_prompt)
+        return input.bufferedReader().use { it.readText() }
     }
 
     private fun logLlmRequest(model: String, endpoint: String, systemPrompt: String, ocrText: String) {

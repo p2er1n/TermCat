@@ -186,6 +186,15 @@ class AccessibilityScrollService : AccessibilityService() {
         return atEnd
     }
 
+    private fun resetScrollState() {
+        lastScrollEventTime = 0L
+        lastScrollY = -1
+        lastMaxScrollY = -1
+        lastScrollDeltaY = 0
+        lastScrollClass = null
+        lastRequestedScrollPx = -1
+    }
+
     companion object {
         @Volatile
         private var instance: AccessibilityScrollService? = null
@@ -224,6 +233,10 @@ class AccessibilityScrollService : AccessibilityService() {
 
         fun waitForUiToSettle() {
             SystemClock.sleep(350)
+        }
+
+        fun resetScrollState() {
+            instance?.resetScrollState()
         }
     }
 
