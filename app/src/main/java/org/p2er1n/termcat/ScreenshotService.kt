@@ -159,7 +159,6 @@ class ScreenshotService : Service() {
             if (cancelled) {
                 return
             }
-            logCapturedText("ocr", ocrText)
             if (ocrText.isNotEmpty()) {
                 val textFile = File(cacheDir, "capture_${System.currentTimeMillis()}.txt")
                 textFile.writeText(ocrText)
@@ -183,7 +182,6 @@ class ScreenshotService : Service() {
     private fun captureBitmaps(): List<Bitmap> {
         val canAutoScroll = isScrollServiceEnabled()
         if (!canAutoScroll) {
-            Log.d(TAG, "Auto-scroll disabled: accessibility service not enabled.")
             Handler(Looper.getMainLooper()).post {
                 Toast.makeText(
                     this,
@@ -205,7 +203,6 @@ class ScreenshotService : Service() {
         var noChangeHits = 0
         var lastSignature: Long? = null
         var hasScrolled = false
-        Log.d(TAG, "captureBitmaps: canAutoScroll=$canAutoScroll maxPages=$maxPages")
 
         if (canAutoScroll) {
             AccessibilityScrollService.resetScrollState()
@@ -217,13 +214,10 @@ class ScreenshotService : Service() {
             }
             if (canAutoScroll && hasScrolled && AccessibilityScrollService.isAtScrollEnd()) {
                 endHits += 1
-                Log.d(TAG, "Auto-scroll end signal before capture: hit $endHits.")
                 if (endHits >= 2) {
-                    Log.d(TAG, "Auto-scroll stopped before capture: reached scroll end.")
                     break
                 }
             }
-            Log.d(TAG, "captureBitmaps: page ${index + 1}/$maxPages")
             val bitmap = captureBitmapWithRetry() ?: break
             if (!savedImage) {
                 val outputFile = File(cacheDir, "capture_${System.currentTimeMillis()}.png")
@@ -237,10 +231,8 @@ class ScreenshotService : Service() {
             val signature = computeBitmapSignature(bitmap)
             if (lastSignature != null && signature == lastSignature) {
                 noChangeHits += 1
-                Log.d(TAG, "Capture unchanged: hit $noChangeHits.")
                 bitmap.recycle()
                 if (noChangeHits >= NO_CHANGE_HITS_TO_STOP) {
-                    Log.d(TAG, "Auto-scroll stopped: repeated identical captures.")
                     break
                 }
             } else {
@@ -252,9 +244,7 @@ class ScreenshotService : Service() {
             if (canAutoScroll && index < maxPages - 1) {
                 if (hasScrolled && AccessibilityScrollService.isAtScrollEnd()) {
                     endHits += 1
-                    Log.d(TAG, "Auto-scroll end signal before scroll: hit $endHits.")
                     if (endHits >= 2) {
-                        Log.d(TAG, "Auto-scroll stopped: reached scroll end.")
                         break
                     }
                 } else if (!hasScrolled) {
@@ -262,9 +252,7 @@ class ScreenshotService : Service() {
                 }
                 val beforeEventTime = AccessibilityScrollService.getLastScrollEventTime()
                 val scrolled = AccessibilityScrollService.performScrollDown()
-                Log.d(TAG, "Auto-scroll performed: $scrolled")
                 if (!scrolled) {
-                    Log.d(TAG, "Auto-scroll stopped: performScrollDown returned false.")
                     break
                 }
                 hasScrolled = true
@@ -273,20 +261,10 @@ class ScreenshotService : Service() {
                     beforeEventTime,
                     SCROLL_EVENT_TIMEOUT_MS
                 )
-                if (scrollState == null) {
-                    Log.d(TAG, "Auto-scroll event: none")
-                } else {
-                    val requested = AccessibilityScrollService.getLastRequestedScrollPx()
-                    Log.d(
-                        TAG,
-                        "Auto-scroll event: delta=${scrollState.deltaY} scrollY=${scrollState.scrollY}" +
-                            " max=${scrollState.maxScrollY} requested=$requested"
-                    )
+                if (scrollState != null) {
                     if (scrollState.maxScrollY > 0 && scrollState.scrollY >= scrollState.maxScrollY) {
                         endHits += 1
-                        Log.d(TAG, "Auto-scroll end signal from event: hit $endHits.")
                         if (endHits >= 2) {
-                            Log.d(TAG, "Auto-scroll stopped: reached scroll end.")
                             break
                         }
                     } else {
@@ -294,9 +272,7 @@ class ScreenshotService : Service() {
                     }
                     if (scrollState.deltaY <= MIN_SCROLL_DELTA_PX) {
                         stuckHits += 1
-                        Log.d(TAG, "Auto-scroll stuck signal: hit $stuckHits.")
                         if (stuckHits >= 2) {
-                            Log.d(TAG, "Auto-scroll stopped: no scroll movement.")
                             break
                         }
                     } else {
@@ -305,9 +281,7 @@ class ScreenshotService : Service() {
                 }
                 if (AccessibilityScrollService.isAtScrollEnd()) {
                     endHits += 1
-                    Log.d(TAG, "Auto-scroll end signal after scroll: hit $endHits.")
                     if (endHits >= 2) {
-                        Log.d(TAG, "Auto-scroll stopped: reached scroll end.")
                         break
                     }
                 } else {
@@ -408,19 +382,6 @@ class ScreenshotService : Service() {
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         ).orEmpty()
         return enabledServices.split(':').any { it.equals(id, ignoreCase = true) }
-    }
-
-    private fun logCapturedText(source: String, text: String) {
-        if (text.isBlank()) {
-            Log.d(TAG, "Captured text ($source): <empty>")
-            return
-        }
-        val trimmed = if (text.length > MAX_LOG_CHARS) {
-            text.take(MAX_LOG_CHARS) + "...[truncated]"
-        } else {
-            text
-        }
-        Log.d(TAG, "Captured text ($source):\n$trimmed")
     }
 
     private fun cleanupCaptureFiles() {
@@ -563,8 +524,6 @@ class ScreenshotService : Service() {
             sendLlmStatus(getString(R.string.result_progress_llm))
             val client = createOpenAiClient(apiKey, endpoint)
             val params = buildLlmParams(model, ocrText)
-            val systemPrompt = loadSystemPrompt()
-            logLlmRequest(model, endpoint, systemPrompt, ocrText)
             val response = client.chat().completions().create(params)
             val content = extractContent(response)
             if (content.isBlank()) {
@@ -624,33 +583,6 @@ class ScreenshotService : Service() {
     private fun loadSystemPrompt(): String {
         val input = resources.openRawResource(R.raw.llm_system_prompt)
         return input.bufferedReader().use { it.readText() }
-    }
-
-    private fun logLlmRequest(model: String, endpoint: String, systemPrompt: String, ocrText: String) {
-        Log.d(
-            TAG,
-            "LLM request: endpoint=${normalizeBaseUrl(endpoint)} model=$model " +
-                "systemPromptLength=${systemPrompt.length} ocrChars=${ocrText.length}"
-        )
-        logChunked("LLM systemPrompt", systemPrompt)
-        logChunked("LLM ocrText", ocrText)
-    }
-
-    private fun logChunked(label: String, text: String) {
-        if (text.isEmpty()) {
-            Log.d(TAG, "$label: <empty>")
-            return
-        }
-        val totalChunks = (text.length + LOG_CHUNK_SIZE - 1) / LOG_CHUNK_SIZE
-        var index = 0
-        var chunk = 1
-        while (index < text.length) {
-            val end = (index + LOG_CHUNK_SIZE).coerceAtMost(text.length)
-            val part = text.substring(index, end).replace('\n', ' ')
-            Log.d(TAG, "$label [$chunk/$totalChunks]: $part")
-            index = end
-            chunk += 1
-        }
     }
 
     private fun sendLlmResult(text: String) {
@@ -746,9 +678,7 @@ class ScreenshotService : Service() {
         private const val MIN_SCROLL_DELTA_PX = 4
         private const val SIGNATURE_SIZE = 8
         private const val NO_CHANGE_HITS_TO_STOP = 2
-        private const val MAX_LOG_CHARS = 4000
         private const val TAG = "ScreenshotService"
-        private const val LOG_CHUNK_SIZE = 800
         private const val PADDLE_PROCESS_TIMEOUT_MS = 12000L
         private const val PADDLE_RETRY_COUNT = 2
     }
