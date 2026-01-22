@@ -2,6 +2,7 @@ package org.p2er1n.termcat
 
 import android.os.Bundle
 import android.text.method.LinkMovementMethod
+import android.widget.ImageButton
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import io.noties.markwon.Markwon
@@ -12,6 +13,8 @@ class ResultDetailActivity : ComponentActivity() {
         setContentView(R.layout.activity_result_detail)
 
         val body = intent.getStringExtra(EXTRA_RESULT_TEXT).orEmpty()
+        val backButton = findViewById<ImageButton>(R.id.result_detail_back)
+        backButton.setOnClickListener { finish() }
         val textView = findViewById<TextView>(R.id.result_detail_body)
         textView.movementMethod = LinkMovementMethod.getInstance()
         Markwon.create(this).setMarkdown(textView, body)
