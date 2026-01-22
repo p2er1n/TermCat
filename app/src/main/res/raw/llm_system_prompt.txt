@@ -34,6 +34,3 @@ Point out standard protective clauses that are suspiciously absent (e.g., no SLA
 
 ## 5. Verdict and Recommendation
 Give a final advice: "Sign with caution," "Negotiate clause X," or "Do not sign."
-
-# Input Document
-[Paste the legal text here]

@@ -453,6 +453,10 @@ private fun LanguageSwitcher(accentColor: Color) {
 }
 
 private fun restartWithSplash(context: Context) {
+    val localeIntent = Intent(FloatingWindowService.ACTION_APP_LOCALE_CHANGED).apply {
+        setPackage(context.packageName)
+    }
+    context.sendBroadcast(localeIntent)
     val intent = Intent(context, SplashActivity::class.java)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
     context.startActivity(intent)

@@ -27,8 +27,25 @@ import android.view.accessibility.AccessibilityManager
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.provider.Settings
 import android.content.ComponentName
+import android.content.res.Configuration
+import androidx.appcompat.app.AppCompatDelegate
+import java.util.Locale
 
 class FloatingWindowService : Service() {
+    private enum class ProgressKind {
+        NONE,
+        PREPARING,
+        OCR,
+        LLM,
+        CUSTOM
+    }
+
+    private enum class BodyKind {
+        PROCESSING,
+        EMPTY,
+        RESULT
+    }
+
     private lateinit var windowManager: WindowManager
     private lateinit var overlayView: View
     private lateinit var resultView: View
@@ -36,6 +53,11 @@ class FloatingWindowService : Service() {
     private lateinit var resultParams: WindowManager.LayoutParams
     private var receiverRegistered = false
     private var lastResultFull = ""
+    private var progressKind = ProgressKind.NONE
+    private var progressDone = 0
+    private var progressTotal = 0
+    private var bodyKind = BodyKind.RESULT
+    private var customStatusText: String? = null
     private val markwon by lazy { Markwon.create(this) }
 
     override fun onCreate() {
@@ -83,7 +105,7 @@ class FloatingWindowService : Service() {
             y = 0
         }
 
-        val themedContext = ContextThemeWrapper(this, R.style.Theme_TermCat)
+        val themedContext = createLocalizedThemedContext()
         overlayView = LayoutInflater.from(themedContext)
             .inflate(R.layout.overlay_floating_window, null, false)
         overlayView.findViewById<View>(R.id.overlay_card).setOnClickListener {
@@ -99,7 +121,9 @@ class FloatingWindowService : Service() {
         stopButton.setOnClickListener {
             stopCaptureAndHide()
         }
-        resultView.findViewById<MaterialButton>(R.id.result_copy).setOnClickListener {
+        val copyButton = resultView.findViewById<MaterialButton>(R.id.result_copy)
+        copyButton.text = getLocalizedString(R.string.result_copy)
+        copyButton.setOnClickListener {
             copyResult()
         }
         moreOverlay.setOnClickListener { openFullResult() }
@@ -124,6 +148,46 @@ class FloatingWindowService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    private fun createLocalizedContext(): Context {
+        val locale = AppCompatDelegate.getApplicationLocales()[0]
+        if (locale == null) {
+            return this
+        }
+        val config = Configuration(resources.configuration)
+        config.setLocale(locale)
+        return createConfigurationContext(config)
+    }
+
+    private fun createLocalizedThemedContext(): Context {
+        return ContextThemeWrapper(createLocalizedContext(), R.style.Theme_TermCat)
+    }
+
+    private fun getLocalizedString(resId: Int, vararg args: Any): String {
+        val localized = createLocalizedContext()
+        return if (args.isNotEmpty()) {
+            localized.getString(resId, *args)
+        } else {
+            localized.getString(resId)
+        }
+    }
+
+    private fun getStringForLocale(locale: Locale, resId: Int): String {
+        val config = Configuration(resources.configuration)
+        config.setLocale(locale)
+        val localized = createConfigurationContext(config)
+        return localized.getString(resId)
+    }
+
+    private fun normalizeLlmStatus(status: String): Pair<ProgressKind, String> {
+        val en = getStringForLocale(Locale.ENGLISH, R.string.result_progress_llm)
+        val zh = getStringForLocale(Locale.SIMPLIFIED_CHINESE, R.string.result_progress_llm)
+        return if (status == en || status == zh) {
+            ProgressKind.LLM to getLocalizedString(R.string.result_progress_llm)
+        } else {
+            ProgressKind.CUSTOM to status
+        }
+    }
 
     @SuppressLint("ClickableViewAccessibility")
     private fun attachDragHandler(target: View) {
@@ -182,12 +246,14 @@ class FloatingWindowService : Service() {
 
     private fun showProcessing() {
         lastResultFull = ""
+        progressKind = ProgressKind.PREPARING
+        bodyKind = BodyKind.PROCESSING
         resultView.findViewById<TextView>(R.id.result_title).text =
-            getString(R.string.result_title)
+            getLocalizedString(R.string.result_title)
         resultView.findViewById<TextView>(R.id.result_body).text =
-            getString(R.string.result_processing)
+            getLocalizedString(R.string.result_processing)
         resultView.findViewById<TextView>(R.id.result_progress).text =
-            getString(R.string.result_progress_preparing)
+            getLocalizedString(R.string.result_progress_preparing)
         resultView.findViewById<MaterialButton>(R.id.result_copy).isEnabled = false
         resultView.findViewById<View>(R.id.result_more_overlay).isEnabled = false
         resultView.findViewById<View>(R.id.result_more_overlay).visibility = View.GONE
@@ -197,8 +263,11 @@ class FloatingWindowService : Service() {
     }
 
     private fun updateOcrProgress(done: Int, total: Int) {
+        progressKind = ProgressKind.OCR
+        progressDone = done
+        progressTotal = total
         resultView.findViewById<TextView>(R.id.result_progress).text =
-            getString(R.string.result_progress_ocr, done, total)
+            getLocalizedString(R.string.result_progress_ocr, done, total)
         resultView.findViewById<View>(R.id.result_more_overlay).visibility = View.GONE
         updateStopButton()
         resultView.visibility = View.VISIBLE
@@ -206,7 +275,10 @@ class FloatingWindowService : Service() {
     }
 
     private fun updateLlmStatus(status: String) {
-        resultView.findViewById<TextView>(R.id.result_progress).text = status
+        val (kind, display) = normalizeLlmStatus(status)
+        progressKind = kind
+        customStatusText = if (kind == ProgressKind.CUSTOM) display else null
+        resultView.findViewById<TextView>(R.id.result_progress).text = display
         resultView.findViewById<View>(R.id.result_more_overlay).visibility = View.GONE
         updateStopButton()
         resultView.visibility = View.VISIBLE
@@ -214,9 +286,11 @@ class FloatingWindowService : Service() {
     }
 
     private fun showResult(text: String) {
-        val body = text.ifBlank { getString(R.string.result_empty) }
+        bodyKind = if (text.isBlank()) BodyKind.EMPTY else BodyKind.RESULT
+        val body = text.ifBlank { getLocalizedString(R.string.result_empty) }
+        progressKind = ProgressKind.NONE
         resultView.findViewById<TextView>(R.id.result_title).text =
-            getString(R.string.result_title)
+            getLocalizedString(R.string.result_title)
         markwon.setMarkdown(resultView.findViewById(R.id.result_body), body)
         resultView.findViewById<TextView>(R.id.result_progress).text = ""
         resultView.findViewById<MaterialButton>(R.id.result_copy).isEnabled = text.isNotBlank()
@@ -239,12 +313,47 @@ class FloatingWindowService : Service() {
         val isProcessing = progressText.isNotBlank()
         progressView.visibility = if (isProcessing) View.VISIBLE else View.GONE
         if (isProcessing) {
-            button.text = getString(R.string.result_stop)
+            button.text = getLocalizedString(R.string.result_stop)
             button.setOnClickListener { stopCaptureAndHide() }
         } else {
-            button.text = getString(R.string.result_close)
+            button.text = getLocalizedString(R.string.result_close)
             button.setOnClickListener { hideResult() }
         }
+    }
+
+    private fun refreshLocalizedTexts() {
+        if (!::resultView.isInitialized) return
+        val titleView = resultView.findViewById<TextView>(R.id.result_title)
+        titleView.text = getLocalizedString(R.string.result_title)
+        val copyButton = resultView.findViewById<MaterialButton>(R.id.result_copy)
+        copyButton.text = getLocalizedString(R.string.result_copy)
+        val bodyView = resultView.findViewById<TextView>(R.id.result_body)
+        when (bodyKind) {
+            BodyKind.PROCESSING -> bodyView.text = getLocalizedString(R.string.result_processing)
+            BodyKind.EMPTY -> bodyView.text = getLocalizedString(R.string.result_empty)
+            BodyKind.RESULT -> Unit
+        }
+        val progressView = resultView.findViewById<TextView>(R.id.result_progress)
+        when (progressKind) {
+            ProgressKind.PREPARING -> {
+                progressView.text = getLocalizedString(R.string.result_progress_preparing)
+            }
+            ProgressKind.OCR -> {
+                progressView.text = getLocalizedString(
+                    R.string.result_progress_ocr,
+                    progressDone,
+                    progressTotal
+                )
+            }
+            ProgressKind.LLM -> {
+                progressView.text = getLocalizedString(R.string.result_progress_llm)
+            }
+            ProgressKind.CUSTOM -> {
+                progressView.text = customStatusText.orEmpty()
+            }
+            else -> Unit
+        }
+        updateStopButton()
     }
 
     private fun stopCaptureAndHide() {
@@ -265,12 +374,12 @@ class FloatingWindowService : Service() {
 
     private fun copyResult() {
         val text = resultView.findViewById<TextView>(R.id.result_body).text.toString()
-        if (text.isBlank() || text == getString(R.string.result_processing)) {
+        if (text.isBlank() || text == getLocalizedString(R.string.result_processing)) {
             return
         }
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("TermCat OCR", text))
-        Toast.makeText(this, getString(R.string.result_copied), Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getLocalizedString(R.string.result_copied), Toast.LENGTH_SHORT).show()
     }
 
     private fun openFullResult() {
@@ -292,6 +401,7 @@ class FloatingWindowService : Service() {
             addAction(ACTION_LLM_RESULT)
             addAction(ACTION_LLM_STATUS)
             addAction(ACTION_LLM_ERROR)
+            addAction(ACTION_APP_LOCALE_CHANGED)
         }
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(resultReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -324,7 +434,7 @@ class FloatingWindowService : Service() {
                 }
                 ACTION_LLM_STATUS -> {
                     val status = intent.getStringExtra(EXTRA_LLM_STATUS)
-                        ?: getString(R.string.result_progress_llm)
+                        ?: getLocalizedString(R.string.result_progress_llm)
                     updateLlmStatus(status)
                 }
                 ACTION_LLM_RESULT -> {
@@ -348,6 +458,9 @@ class FloatingWindowService : Service() {
                 }
                 ACTION_CAPTURE_CANCELLED -> {
                     restoreOverlay()
+                }
+                ACTION_APP_LOCALE_CHANGED -> {
+                    refreshLocalizedTexts()
                 }
             }
         }
@@ -393,6 +506,7 @@ class FloatingWindowService : Service() {
         const val ACTION_LLM_RESULT = "org.p2er1n.termcat.LLM_RESULT"
         const val ACTION_LLM_ERROR = "org.p2er1n.termcat.LLM_ERROR"
         const val ACTION_OVERLAY_STATUS = "org.p2er1n.termcat.OVERLAY_STATUS"
+        const val ACTION_APP_LOCALE_CHANGED = "org.p2er1n.termcat.APP_LOCALE_CHANGED"
         const val EXTRA_OCR_DONE = "extra_ocr_done"
         const val EXTRA_OCR_TOTAL = "extra_ocr_total"
         const val EXTRA_LLM_STATUS = "extra_llm_status"
