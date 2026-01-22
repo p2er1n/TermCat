@@ -28,6 +28,14 @@
                 android:text="Potential Issues"
                 android:textAppearance="?attr/textAppearanceTitleMedium" />
 
+            <TextView
+                android:id="@+id/result_progress"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Preparing OCR..."
+                android:textAppearance="?attr/textAppearanceBodySmall" />
+
             <ScrollView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

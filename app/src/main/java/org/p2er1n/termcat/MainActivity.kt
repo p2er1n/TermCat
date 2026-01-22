@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,6 +19,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -42,6 +44,9 @@ import android.app.ActivityManager
 import android.content.Context
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
+import android.content.ComponentName
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.view.accessibility.AccessibilityManager
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,7 +56,8 @@ class MainActivity : ComponentActivity() {
                 HomeScreen(
                     onStartOverlay = { requestOrStartOverlay() },
                     onStopOverlay = { stopOverlay() },
-                    onOpenSettings = { openOverlaySettings() }
+                    onOpenSettings = { openOverlaySettings() },
+                    onOpenAccessibility = { openAccessibilitySettings() }
                 )
             }
         }
@@ -74,6 +80,11 @@ class MainActivity : ComponentActivity() {
         startActivity(intent)
     }
 
+    private fun openAccessibilitySettings() {
+        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        startActivity(intent)
+    }
+
     private fun stopOverlay() {
         stopService(Intent(this, FloatingWindowService::class.java))
     }
@@ -83,22 +94,29 @@ class MainActivity : ComponentActivity() {
 fun HomeScreen(
     onStartOverlay: () -> Unit,
     onStopOverlay: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onOpenAccessibility: () -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var overlayEnabled by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var overlayRunning by remember { mutableStateOf(AppPrefs.isOverlayRunning(context)) }
+    var accessibilityEnabled by remember { mutableStateOf(isScrollServiceEnabled(context)) }
     var llmEndpoint by remember { mutableStateOf(AppPrefs.getLlmEndpoint(context)) }
     var llmApiKey by remember { mutableStateOf(AppPrefs.getLlmApiKey(context)) }
     var llmModel by remember { mutableStateOf(AppPrefs.getLlmModel(context)) }
+    var maxCapturePagesText by remember {
+        mutableStateOf(AppPrefs.getMaxCapturePages(context).toString())
+    }
 
     LaunchedEffect(Unit) {
         overlayEnabled = Settings.canDrawOverlays(context)
         overlayRunning = isOverlayServiceRunning(context)
+        accessibilityEnabled = isScrollServiceEnabled(context)
         llmEndpoint = AppPrefs.getLlmEndpoint(context)
         llmApiKey = AppPrefs.getLlmApiKey(context)
         llmModel = AppPrefs.getLlmModel(context)
+        maxCapturePagesText = AppPrefs.getMaxCapturePages(context).toString()
     }
 
     LaunchedEffect(llmEndpoint) {
@@ -111,6 +129,13 @@ fun HomeScreen(
 
     LaunchedEffect(llmModel) {
         AppPrefs.setLlmModel(context, llmModel)
+    }
+
+    LaunchedEffect(maxCapturePagesText) {
+        val value = maxCapturePagesText.toIntOrNull()
+        if (value != null) {
+            AppPrefs.setMaxCapturePages(context, value)
+        }
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -129,6 +154,7 @@ fun HomeScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 overlayEnabled = Settings.canDrawOverlays(context)
                 overlayRunning = isOverlayServiceRunning(context)
+                accessibilityEnabled = isScrollServiceEnabled(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -167,6 +193,14 @@ fun HomeScreen(
         TextButton(onClick = onOpenSettings) {
             Text(text = stringResource(R.string.home_manage_permission))
         }
+        AccessibilityToggle(
+            enabled = accessibilityEnabled,
+            onOpenAccessibility = onOpenAccessibility
+        )
+        CaptureSettingsCard(
+            maxCapturePagesText = maxCapturePagesText,
+            onMaxCapturePagesChange = { maxCapturePagesText = it }
+        )
         Spacer(modifier = Modifier.height(6.dp))
         StatusCard(
             overlayEnabled = overlayEnabled,
@@ -303,6 +337,95 @@ private fun LlmConfigCard(
     }
 }
 
+@Composable
+private fun AccessibilityToggle(
+    enabled: Boolean,
+    onOpenAccessibility: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.accessibility_title),
+                style = MaterialTheme.typography.titleMedium
+            )
+            Text(
+                text = stringResource(R.string.accessibility_desc),
+                style = MaterialTheme.typography.bodySmall
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = if (enabled) {
+                        stringResource(R.string.accessibility_enabled)
+                    } else {
+                        stringResource(R.string.accessibility_disabled)
+                    },
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = { onOpenAccessibility() }
+                )
+            }
+            TextButton(onClick = onOpenAccessibility) {
+                Text(text = stringResource(R.string.accessibility_open_settings))
+            }
+        }
+    }
+}
+
+@Composable
+private fun CaptureSettingsCard(
+    maxCapturePagesText: String,
+    onMaxCapturePagesChange: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.capture_settings_title),
+                style = MaterialTheme.typography.titleMedium
+            )
+            Text(
+                text = stringResource(R.string.capture_settings_desc),
+                style = MaterialTheme.typography.bodySmall
+            )
+            OutlinedTextField(
+                value = maxCapturePagesText,
+                onValueChange = { value ->
+                    val filtered = value.filter { it.isDigit() }
+                    onMaxCapturePagesChange(filtered.take(3))
+                },
+                label = { Text(text = stringResource(R.string.capture_settings_max_pages_label)) },
+                placeholder = { Text(text = stringResource(R.string.capture_settings_max_pages_placeholder)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+            Text(
+                text = stringResource(R.string.capture_settings_helper_text),
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+    }
+}
+
 private fun isValidEndpoint(endpoint: String): Boolean {
     if (endpoint.isBlank()) return false
     val trimmed = endpoint.trim()
@@ -324,6 +447,22 @@ private fun isOverlayServiceRunning(context: Context): Boolean {
     return services.any { it.service.className == FloatingWindowService::class.java.name }
 }
 
+private fun isScrollServiceEnabled(context: Context): Boolean {
+    val manager = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+    val enabled = manager.getEnabledAccessibilityServiceList(
+        AccessibilityServiceInfo.FEEDBACK_ALL_MASK
+    )
+    val id = ComponentName(context, AccessibilityScrollService::class.java).flattenToString()
+    if (enabled.any { it.id == id }) {
+        return true
+    }
+    val enabledServices = Settings.Secure.getString(
+        context.contentResolver,
+        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+    ).orEmpty()
+    return enabledServices.split(':').any { it.equals(id, ignoreCase = true) }
+}
+
 @Preview(showBackground = true)
 @Composable
 private fun HomeScreenPreview() {
@@ -331,7 +470,8 @@ private fun HomeScreenPreview() {
         HomeScreen(
             onStartOverlay = {},
             onStopOverlay = {},
-            onOpenSettings = {}
+            onOpenSettings = {},
+            onOpenAccessibility = {}
         )
     }
 }

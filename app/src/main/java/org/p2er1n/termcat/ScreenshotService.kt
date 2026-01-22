@@ -20,6 +20,10 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
+import android.view.accessibility.AccessibilityManager
+import android.content.ComponentName
+import android.provider.Settings
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.tasks.Tasks
@@ -38,6 +42,7 @@ import com.openai.models.ChatCompletionUserMessageParam
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
+import android.util.Log
 
 class ScreenshotService : Service() {
     private val handlerThread = HandlerThread("ScreenCapture")
@@ -74,7 +79,7 @@ class ScreenshotService : Service() {
             return START_NOT_STICKY
         }
 
-        startForeground(NOTIFICATION_ID, createNotification())
+        startForegroundCompat()
         backgroundHandler.post {
             startCapture(resultCode, resultData)
         }
@@ -118,27 +123,15 @@ class ScreenshotService : Service() {
             backgroundHandler
         )
 
-        backgroundHandler.postDelayed({ captureImage() }, 250)
+        backgroundHandler.postDelayed({ captureAndProcess() }, 250)
     }
 
-    private fun captureImage() {
-        val reader = imageReader ?: return
-        val image = reader.acquireLatestImage()
-        if (image == null) {
-            backgroundHandler.postDelayed({ captureImage() }, 100)
-            return
-        }
-
-        val bitmap = image.toBitmap()
-        image.close()
-
-        val outputFile = File(cacheDir, "capture_${System.currentTimeMillis()}.png")
-        FileOutputStream(outputFile).use { out ->
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-        }
-
-        sendCaptureDone()
-        val ocrText = runOcr(bitmap)
+    private fun captureAndProcess() {
+        val bitmaps = captureBitmaps()
+        stopProjectionSession()
+        sendCaptureDone(bitmaps.size)
+        val ocrText = runOcrBatch(bitmaps)
+        logCapturedText("ocr", ocrText)
         if (ocrText.isNotEmpty()) {
             val textFile = File(cacheDir, "capture_${System.currentTimeMillis()}.txt")
             textFile.writeText(ocrText)
@@ -153,7 +146,232 @@ class ScreenshotService : Service() {
         stopSelf()
     }
 
+    private fun captureBitmaps(): List<Bitmap> {
+        val canAutoScroll = isScrollServiceEnabled()
+        if (!canAutoScroll) {
+            Log.d(TAG, "Auto-scroll disabled: accessibility service not enabled.")
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(
+                    this,
+                    getString(R.string.accessibility_scroll_required),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+
+        val bitmaps = mutableListOf<Bitmap>()
+        var savedImage = false
+        val maxPages = if (canAutoScroll) {
+            AppPrefs.getMaxCapturePages(this)
+        } else {
+            1
+        }
+        var endHits = 0
+        var stuckHits = 0
+        var noChangeHits = 0
+        var lastSignature: Long? = null
+        Log.d(TAG, "captureBitmaps: canAutoScroll=$canAutoScroll maxPages=$maxPages")
+
+        for (index in 0 until maxPages) {
+            Log.d(TAG, "captureBitmaps: page ${index + 1}/$maxPages")
+            val bitmap = captureBitmapWithRetry() ?: break
+            if (!savedImage) {
+                val outputFile = File(cacheDir, "capture_${System.currentTimeMillis()}.png")
+                FileOutputStream(outputFile).use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                }
+                savedImage = true
+            }
+
+            val signature = computeBitmapSignature(bitmap)
+            if (lastSignature != null && signature == lastSignature) {
+                noChangeHits += 1
+                Log.d(TAG, "Capture unchanged: hit $noChangeHits.")
+                bitmap.recycle()
+                if (noChangeHits >= NO_CHANGE_HITS_TO_STOP) {
+                    Log.d(TAG, "Auto-scroll stopped: repeated identical captures.")
+                    break
+                }
+            } else {
+                noChangeHits = 0
+                lastSignature = signature
+                bitmaps.add(bitmap)
+            }
+
+            if (canAutoScroll && index < maxPages - 1) {
+                if (AccessibilityScrollService.isAtScrollEnd()) {
+                    endHits += 1
+                    Log.d(TAG, "Auto-scroll end signal before scroll: hit $endHits.")
+                    if (endHits >= 2) {
+                        Log.d(TAG, "Auto-scroll stopped: reached scroll end.")
+                        break
+                    }
+                } else {
+                    endHits = 0
+                }
+                val beforeEventTime = AccessibilityScrollService.getLastScrollEventTime()
+                val scrolled = AccessibilityScrollService.performScrollDown()
+                Log.d(TAG, "Auto-scroll performed: $scrolled")
+                if (!scrolled) {
+                    Log.d(TAG, "Auto-scroll stopped: performScrollDown returned false.")
+                    break
+                }
+                AccessibilityScrollService.waitForUiToSettle()
+                val scrollState = AccessibilityScrollService.waitForScrollState(
+                    beforeEventTime,
+                    SCROLL_EVENT_TIMEOUT_MS
+                )
+                if (scrollState == null) {
+                    Log.d(TAG, "Auto-scroll event: none")
+                } else {
+                    val requested = AccessibilityScrollService.getLastRequestedScrollPx()
+                    Log.d(
+                        TAG,
+                        "Auto-scroll event: delta=${scrollState.deltaY} scrollY=${scrollState.scrollY}" +
+                            " max=${scrollState.maxScrollY} requested=$requested"
+                    )
+                    if (scrollState.maxScrollY > 0 && scrollState.scrollY >= scrollState.maxScrollY) {
+                        endHits += 1
+                        Log.d(TAG, "Auto-scroll end signal from event: hit $endHits.")
+                        if (endHits >= 2) {
+                            Log.d(TAG, "Auto-scroll stopped: reached scroll end.")
+                            break
+                        }
+                    } else {
+                        endHits = 0
+                    }
+                    if (scrollState.deltaY <= MIN_SCROLL_DELTA_PX) {
+                        stuckHits += 1
+                        Log.d(TAG, "Auto-scroll stuck signal: hit $stuckHits.")
+                        if (stuckHits >= 2) {
+                            Log.d(TAG, "Auto-scroll stopped: no scroll movement.")
+                            break
+                        }
+                    } else {
+                        stuckHits = 0
+                    }
+                }
+                if (AccessibilityScrollService.isAtScrollEnd()) {
+                    endHits += 1
+                    Log.d(TAG, "Auto-scroll end signal after scroll: hit $endHits.")
+                    if (endHits >= 2) {
+                        Log.d(TAG, "Auto-scroll stopped: reached scroll end.")
+                        break
+                    }
+                } else {
+                    endHits = 0
+                }
+            }
+        }
+
+        return bitmaps
+    }
+
+    private fun captureBitmapWithRetry(): Bitmap? {
+        val reader = imageReader ?: return null
+        var image: Image? = null
+        for (attempt in 0 until 10) {
+            image = reader.acquireLatestImage()
+            if (image != null) break
+            SystemClock.sleep(80)
+        }
+        val bitmap = image?.toBitmap()
+        image?.close()
+        return bitmap
+    }
+
+    private fun runOcrBatch(bitmaps: List<Bitmap>): String {
+        if (bitmaps.isEmpty()) return ""
+        val texts = mutableListOf<String>()
+        val total = bitmaps.size
+        sendOcrProgress(0, total)
+        for ((index, bitmap) in bitmaps.withIndex()) {
+            val ocrText = runOcr(bitmap)
+            if (ocrText.isNotBlank()) {
+                texts.add(ocrText)
+            }
+            sendOcrProgress(index + 1, total)
+            bitmap.recycle()
+        }
+        return mergeOcrTexts(texts)
+    }
+
+    private fun mergeOcrTexts(texts: List<String>): String {
+        if (texts.isEmpty()) return ""
+        val seen = LinkedHashSet<String>()
+        texts.forEach { block ->
+            block.split('\n')
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .forEach { line -> seen.add(line) }
+        }
+        return seen.joinToString(separator = "\n")
+    }
+
+    private fun computeBitmapSignature(bitmap: Bitmap): Long {
+        val scaled = Bitmap.createScaledBitmap(bitmap, SIGNATURE_SIZE, SIGNATURE_SIZE, true)
+        val pixels = IntArray(SIGNATURE_SIZE * SIGNATURE_SIZE)
+        scaled.getPixels(pixels, 0, SIGNATURE_SIZE, 0, 0, SIGNATURE_SIZE, SIGNATURE_SIZE)
+        if (scaled != bitmap) {
+            scaled.recycle()
+        }
+        var sum = 0L
+        for (pixel in pixels) {
+            val r = (pixel shr 16) and 0xff
+            val g = (pixel shr 8) and 0xff
+            val b = pixel and 0xff
+            val lum = (r * 30 + g * 59 + b * 11) / 100
+            sum += lum.toLong()
+        }
+        val avg = sum / pixels.size
+        var hash = 0L
+        for (i in pixels.indices) {
+            val pixel = pixels[i]
+            val r = (pixel shr 16) and 0xff
+            val g = (pixel shr 8) and 0xff
+            val b = pixel and 0xff
+            val lum = (r * 30 + g * 59 + b * 11) / 100
+            if (lum >= avg) {
+                hash = hash or (1L shl i)
+            }
+        }
+        return hash
+    }
+
+    private fun isScrollServiceEnabled(): Boolean {
+        val manager = getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+        val enabled = manager.getEnabledAccessibilityServiceList(
+            android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK
+        )
+        val id = ComponentName(this, AccessibilityScrollService::class.java).flattenToString()
+        if (enabled.any { it.id == id }) {
+            return true
+        }
+        val enabledServices = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ).orEmpty()
+        return enabledServices.split(':').any { it.equals(id, ignoreCase = true) }
+    }
+
+    private fun logCapturedText(source: String, text: String) {
+        if (text.isBlank()) {
+            Log.d(TAG, "Captured text ($source): <empty>")
+            return
+        }
+        val trimmed = if (text.length > MAX_LOG_CHARS) {
+            text.take(MAX_LOG_CHARS) + "...[truncated]"
+        } else {
+            text
+        }
+        Log.d(TAG, "Captured text ($source):\n$trimmed")
+    }
+
     private fun releaseResources() {
+        stopProjectionSession()
+    }
+
+    private fun stopProjectionSession() {
         virtualDisplay?.release()
         virtualDisplay = null
         imageReader?.close()
@@ -162,6 +380,19 @@ class ScreenshotService : Service() {
         mediaProjection?.stop()
         mediaProjection = null
         stopForeground(STOP_FOREGROUND_REMOVE)
+    }
+
+    private fun startForegroundCompat() {
+        val notification = createNotification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
     }
 
     private fun runOcr(bitmap: Bitmap): String {
@@ -201,6 +432,7 @@ class ScreenshotService : Service() {
         }
 
         try {
+            sendLlmStatus(getString(R.string.result_progress_llm))
             val client = createOpenAiClient(apiKey, endpoint)
             val params = buildLlmParams(model, ocrText)
             val response = client.chat().completions().create(params)
@@ -279,9 +511,27 @@ class ScreenshotService : Service() {
         sendBroadcast(intent)
     }
 
-    private fun sendCaptureDone() {
+    private fun sendCaptureDone(totalPages: Int) {
         val intent = Intent(FloatingWindowService.ACTION_CAPTURE_DONE).apply {
             setPackage(packageName)
+            putExtra(FloatingWindowService.EXTRA_OCR_TOTAL, totalPages)
+        }
+        sendBroadcast(intent)
+    }
+
+    private fun sendOcrProgress(done: Int, total: Int) {
+        val intent = Intent(FloatingWindowService.ACTION_OCR_PROGRESS).apply {
+            setPackage(packageName)
+            putExtra(FloatingWindowService.EXTRA_OCR_DONE, done)
+            putExtra(FloatingWindowService.EXTRA_OCR_TOTAL, total)
+        }
+        sendBroadcast(intent)
+    }
+
+    private fun sendLlmStatus(status: String) {
+        val intent = Intent(FloatingWindowService.ACTION_LLM_STATUS).apply {
+            setPackage(packageName)
+            putExtra(FloatingWindowService.EXTRA_LLM_STATUS, status)
         }
         sendBroadcast(intent)
     }
@@ -328,5 +578,11 @@ class ScreenshotService : Service() {
         private const val NOTIFICATION_ID = 201
         private const val OCR_TIMEOUT_SECONDS = 8L
         private const val LLM_TIMEOUT_SECONDS = 20L
+        private const val SCROLL_EVENT_TIMEOUT_MS = 900L
+        private const val MIN_SCROLL_DELTA_PX = 4
+        private const val SIGNATURE_SIZE = 8
+        private const val NO_CHANGE_HITS_TO_STOP = 2
+        private const val MAX_LOG_CHARS = 4000
+        private const val TAG = "ScreenshotService"
     }
 }

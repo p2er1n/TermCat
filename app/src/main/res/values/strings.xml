@@ -7,6 +7,9 @@
     <string name="ocr_failed">OCR failed</string>
     <string name="result_title">Potential issues</string>
     <string name="result_processing">Analyzing captured text...</string>
+    <string name="result_progress_preparing">Preparing OCR...</string>
+    <string name="result_progress_ocr">OCR %1$d/%2$d</string>
+    <string name="result_progress_llm">LLM analyzing...</string>
     <string name="result_empty">No text detected.</string>
     <string name="result_copied">Copied</string>
     <string name="home_title">TermCat</string>
@@ -14,6 +17,11 @@
     <string name="home_primary_action_start">Enable Floating Window</string>
     <string name="home_primary_action_stop">Disable Floating Window</string>
     <string name="home_manage_permission">Manage overlay permission</string>
+    <string name="accessibility_title">Accessibility scroll</string>
+    <string name="accessibility_desc">Required to auto-scroll long terms during capture.</string>
+    <string name="accessibility_enabled">Enabled</string>
+    <string name="accessibility_disabled">Disabled</string>
+    <string name="accessibility_open_settings">Open accessibility settings</string>
     <string name="home_status_title">Status</string>
     <string name="home_status_permission">Overlay permission</string>
     <string name="home_status_permission_granted">Granted</string>
@@ -22,6 +30,11 @@
     <string name="home_status_window_running">Running</string>
     <string name="home_status_window_stopped">Not running</string>
     <string name="home_footer">Local OCR supports Chinese and English. Screenshots stay on device.</string>
+    <string name="capture_settings_title">Capture settings</string>
+    <string name="capture_settings_desc">Limit the maximum number of scroll steps per capture.</string>
+    <string name="capture_settings_max_pages_label">Max scroll steps</string>
+    <string name="capture_settings_max_pages_placeholder">30</string>
+    <string name="capture_settings_helper_text">Default is 30. Range: 1-120.</string>
     <string name="llm_title">LLM configuration</string>
     <string name="llm_required">Cloud analysis is required for risk detection.</string>
     <string name="llm_endpoint_label">API endpoint</string>
@@ -37,4 +50,5 @@
     <string name="llm_error_config">LLM configuration is incomplete.</string>
     <string name="llm_error_response">LLM returned an empty response.</string>
     <string name="llm_error_generic">LLM request failed.</string>
+    <string name="accessibility_scroll_required">Enable the accessibility scroll service to capture long terms.</string>
 </resources>

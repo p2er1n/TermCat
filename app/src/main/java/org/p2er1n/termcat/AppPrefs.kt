@@ -8,6 +8,10 @@ object AppPrefs {
     private const val KEY_LLM_ENDPOINT = "llm_endpoint"
     private const val KEY_LLM_MODEL = "llm_model"
     private const val KEY_LLM_API_KEY = "llm_api_key"
+    private const val KEY_MAX_CAPTURE_PAGES = "max_capture_pages"
+    private const val DEFAULT_MAX_CAPTURE_PAGES = 30
+    private const val MIN_CAPTURE_PAGES = 1
+    private const val MAX_CAPTURE_PAGES = 120
 
     fun setOverlayRunning(context: Context, running: Boolean) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -54,6 +58,20 @@ object AppPrefs {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_LLM_API_KEY, value)
+            .apply()
+    }
+
+    fun getMaxCapturePages(context: Context): Int {
+        val value = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getInt(KEY_MAX_CAPTURE_PAGES, DEFAULT_MAX_CAPTURE_PAGES)
+        return value.coerceIn(MIN_CAPTURE_PAGES, MAX_CAPTURE_PAGES)
+    }
+
+    fun setMaxCapturePages(context: Context, value: Int) {
+        val clamped = value.coerceIn(MIN_CAPTURE_PAGES, MAX_CAPTURE_PAGES)
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putInt(KEY_MAX_CAPTURE_PAGES, clamped)
             .apply()
     }
 }

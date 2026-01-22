@@ -146,7 +146,22 @@ class FloatingWindowService : Service() {
             getString(R.string.result_title)
         resultView.findViewById<TextView>(R.id.result_body).text =
             getString(R.string.result_processing)
+        resultView.findViewById<TextView>(R.id.result_progress).text =
+            getString(R.string.result_progress_preparing)
         resultView.findViewById<MaterialButton>(R.id.result_copy).isEnabled = false
+        resultView.visibility = View.VISIBLE
+        overlayView.visibility = View.VISIBLE
+    }
+
+    private fun updateOcrProgress(done: Int, total: Int) {
+        resultView.findViewById<TextView>(R.id.result_progress).text =
+            getString(R.string.result_progress_ocr, done, total)
+        resultView.visibility = View.VISIBLE
+        overlayView.visibility = View.VISIBLE
+    }
+
+    private fun updateLlmStatus(status: String) {
+        resultView.findViewById<TextView>(R.id.result_progress).text = status
         resultView.visibility = View.VISIBLE
         overlayView.visibility = View.VISIBLE
     }
@@ -156,6 +171,7 @@ class FloatingWindowService : Service() {
         resultView.findViewById<TextView>(R.id.result_title).text =
             getString(R.string.result_title)
         resultView.findViewById<TextView>(R.id.result_body).text = body
+        resultView.findViewById<TextView>(R.id.result_progress).text = ""
         resultView.findViewById<MaterialButton>(R.id.result_copy).isEnabled = text.isNotBlank()
         resultView.visibility = View.VISIBLE
         overlayView.visibility = View.VISIBLE
@@ -188,7 +204,9 @@ class FloatingWindowService : Service() {
         val filter = IntentFilter().apply {
             addAction(ACTION_CAPTURE_CANCELLED)
             addAction(ACTION_CAPTURE_DONE)
+            addAction(ACTION_OCR_PROGRESS)
             addAction(ACTION_LLM_RESULT)
+            addAction(ACTION_LLM_STATUS)
             addAction(ACTION_LLM_ERROR)
         }
         if (Build.VERSION.SDK_INT >= 33) {
@@ -209,7 +227,21 @@ class FloatingWindowService : Service() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
                 ACTION_CAPTURE_DONE -> {
+                    val total = intent.getIntExtra(EXTRA_OCR_TOTAL, 0)
                     showProcessing()
+                    if (total > 0) {
+                        updateOcrProgress(0, total)
+                    }
+                }
+                ACTION_OCR_PROGRESS -> {
+                    val done = intent.getIntExtra(EXTRA_OCR_DONE, 0)
+                    val total = intent.getIntExtra(EXTRA_OCR_TOTAL, 0)
+                    updateOcrProgress(done, total)
+                }
+                ACTION_LLM_STATUS -> {
+                    val status = intent.getStringExtra(EXTRA_LLM_STATUS)
+                        ?: getString(R.string.result_progress_llm)
+                    updateLlmStatus(status)
                 }
                 ACTION_LLM_RESULT -> {
                     val rawText = intent.getStringExtra(EXTRA_LLM_TEXT).orEmpty()
@@ -243,12 +275,18 @@ class FloatingWindowService : Service() {
         sendBroadcast(intent)
     }
 
+
     companion object {
         const val ACTION_CAPTURE_CANCELLED = "org.p2er1n.termcat.CAPTURE_CANCELLED"
         const val ACTION_CAPTURE_DONE = "org.p2er1n.termcat.CAPTURE_DONE"
+        const val ACTION_OCR_PROGRESS = "org.p2er1n.termcat.OCR_PROGRESS"
+        const val ACTION_LLM_STATUS = "org.p2er1n.termcat.LLM_STATUS"
         const val ACTION_LLM_RESULT = "org.p2er1n.termcat.LLM_RESULT"
         const val ACTION_LLM_ERROR = "org.p2er1n.termcat.LLM_ERROR"
         const val ACTION_OVERLAY_STATUS = "org.p2er1n.termcat.OVERLAY_STATUS"
+        const val EXTRA_OCR_DONE = "extra_ocr_done"
+        const val EXTRA_OCR_TOTAL = "extra_ocr_total"
+        const val EXTRA_LLM_STATUS = "extra_llm_status"
         const val EXTRA_OCR_TEXT = "extra_ocr_text"
         const val EXTRA_LLM_TEXT = "extra_llm_text"
         const val EXTRA_LLM_ERROR = "extra_llm_error"
