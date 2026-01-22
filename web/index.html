@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TermCat AI 对话历史</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <div class="hero__text">
+          <p class="hero__eyebrow">TermCat / Git 记录</p>
+          <h1>每个 Commit 对应的 AI 对话</h1>
+          <p class="hero__subtitle">
+            从 .waylog/history 追溯每次提交的上下文，快速定位对话内容。
+          </p>
+        </div>
+        <div class="hero__meta">
+          <div class="meta-card">
+            <span class="meta-card__label">总提交数</span>
+            <span id="meta-commit-count" class="meta-card__value">-</span>
+          </div>
+          <div class="meta-card">
+            <span class="meta-card__label">包含对话</span>
+            <span id="meta-log-count" class="meta-card__value">-</span>
+          </div>
+          <div class="meta-card">
+            <span class="meta-card__label">数据生成</span>
+            <span id="meta-generated-at" class="meta-card__value">-</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="panel panel--list">
+          <div class="panel__header">
+            <div>
+              <h2>提交列表</h2>
+              <p>点击任何提交，查看关联的对话记录。</p>
+            </div>
+            <div class="panel__filters">
+              <label class="field">
+                <span>搜索</span>
+                <input id="filter-input" type="search" placeholder="提交信息 / 文件名 / hash" />
+              </label>
+              <label class="toggle">
+                <input id="toggle-logs" type="checkbox" />
+                <span>只看有对话</span>
+              </label>
+            </div>
+          </div>
+          <div id="commit-list" class="commit-list"></div>
+        </section>
+
+        <section class="panel panel--detail">
+          <div id="commit-detail" class="commit-detail">
+            <div class="commit-detail__empty">
+              <h2>请选择一个提交</h2>
+              <p>左侧列表支持搜索和筛选。</p>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
