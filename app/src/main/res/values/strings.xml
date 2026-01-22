@@ -37,6 +37,8 @@
     <string name="home_status_window_running">Running</string>
     <string name="home_status_window_stopped">Not running</string>
     <string name="home_footer">Local OCR supports Chinese and English. Screenshots stay on device.</string>
+    <string name="section_ocr">OCR</string>
+    <string name="section_analysis">Analysis</string>
     <string name="capture_settings_title">Capture settings</string>
     <string name="capture_settings_desc">Limit the maximum number of scroll steps per capture.</string>
     <string name="capture_settings_max_pages_label">Max scroll steps</string>

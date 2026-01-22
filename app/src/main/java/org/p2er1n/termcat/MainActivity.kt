@@ -16,11 +16,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -35,13 +41,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import org.p2er1n.termcat.ui.theme.TermCatTheme
 import android.app.ActivityManager
 import android.content.Context
@@ -121,6 +134,11 @@ fun HomeScreen(
     var maxCapturePagesText by remember {
         mutableStateOf(AppPrefs.getMaxCapturePages(context).toString())
     }
+    val accentColor = Color(0xFF1C274C)
+    val baseColor = Color(0xFFA0A6B6)
+    val cardColor = Color(0xFFF6F7FB)
+    val successGreen = Color(0xFF16A34A)
+    val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
 
     LaunchedEffect(Unit) {
         overlayEnabled = Settings.canDrawOverlays(context)
@@ -180,107 +198,179 @@ fun HomeScreen(
         onDispose { context.unregisterReceiver(receiver) }
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
-        horizontalAlignment = Alignment.Start
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xFFF2F4F8), Color(0xFFDDE2EA))
+                )
+            )
     ) {
-        Text(
-            text = stringResource(R.string.home_title),
-            style = MaterialTheme.typography.headlineLarge
-        )
-        Text(
-            text = stringResource(R.string.home_subtitle),
-            style = MaterialTheme.typography.bodyLarge
-        )
-        Button(
-            onClick = if (overlayRunning) onStopOverlay else onStartOverlay,
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp),
-            enabled = overlayRunning || accessibilityEnabled
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 20.dp)
+                .statusBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalAlignment = Alignment.Start
         ) {
-            val label = if (overlayRunning) {
-                stringResource(R.string.home_primary_action_stop)
-            } else {
-                stringResource(R.string.home_primary_action_start)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = cardShape,
+                border = BorderStroke(1.dp, baseColor.copy(alpha = 0.35f)),
+                colors = CardDefaults.cardColors(containerColor = cardColor)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.home_title),
+                        style = MaterialTheme.typography.headlineLarge.copy(
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.SemiBold,
+                            color = accentColor,
+                            fontSize = 30.sp
+                        )
+                    )
+                    Text(
+                        text = stringResource(R.string.home_subtitle),
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            color = Color(0xFF2F3441),
+                            fontFamily = FontFamily.Serif
+                        )
+                    )
+                    SettingToggleRow(
+                        label = stringResource(R.string.home_status_window),
+                        description = stringResource(R.string.home_primary_action_start),
+                        checked = overlayRunning,
+                        enabled = overlayRunning || accessibilityEnabled,
+                        onToggle = { enabled ->
+                            if (enabled) onStartOverlay() else onStopOverlay()
+                        },
+                        successGreen = successGreen
+                    )
+                    SettingToggleRow(
+                        label = stringResource(R.string.home_status_permission),
+                        description = stringResource(R.string.home_manage_permission),
+                        checked = overlayEnabled,
+                        enabled = true,
+                        onToggle = { onOpenSettings() },
+                        successGreen = successGreen
+                    )
+                    SettingToggleRow(
+                        label = stringResource(R.string.accessibility_title),
+                        description = stringResource(R.string.accessibility_desc),
+                        checked = accessibilityEnabled,
+                        enabled = true,
+                        onToggle = { onOpenAccessibility() },
+                        successGreen = successGreen
+                    )
+                }
             }
-            Text(text = label, style = MaterialTheme.typography.labelLarge)
+
+            SectionTitle(text = stringResource(R.string.section_ocr), color = accentColor)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = cardShape,
+                colors = CardDefaults.cardColors(containerColor = cardColor),
+                border = BorderStroke(1.dp, baseColor.copy(alpha = 0.35f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OcrEngineCard(
+                        selected = ocrEngine,
+                        onSelect = { ocrEngine = it },
+                        cardColor = cardColor,
+                        cardShape = cardShape,
+                        accentColor = accentColor
+                    )
+                    CaptureSettingsCard(
+                        maxCapturePagesText = maxCapturePagesText,
+                        onMaxCapturePagesChange = { maxCapturePagesText = it },
+                        cardColor = cardColor,
+                        cardShape = cardShape,
+                        accentColor = accentColor
+                    )
+                }
+            }
+
+            SectionTitle(text = stringResource(R.string.section_analysis), color = accentColor)
+            LlmConfigCard(
+                endpoint = llmEndpoint,
+                apiKey = llmApiKey,
+                model = llmModel,
+                onEndpointChange = { llmEndpoint = it },
+                onApiKeyChange = { llmApiKey = it },
+                onModelChange = { llmModel = it },
+                cardColor = cardColor,
+                cardShape = cardShape,
+                accentColor = accentColor
+            )
+
+            Text(
+                text = stringResource(R.string.home_footer),
+                style = MaterialTheme.typography.bodySmall.copy(
+                    color = Color(0xFF3B4251),
+                    fontFamily = FontFamily.Serif
+                )
+            )
+            Spacer(modifier = Modifier.height(12.dp))
         }
-        TextButton(onClick = onOpenSettings) {
-            Text(text = stringResource(R.string.home_manage_permission))
-        }
-        AccessibilityToggle(
-            enabled = accessibilityEnabled,
-            onOpenAccessibility = onOpenAccessibility
-        )
-        OcrEngineCard(
-            selected = ocrEngine,
-            onSelect = { ocrEngine = it }
-        )
-        CaptureSettingsCard(
-            maxCapturePagesText = maxCapturePagesText,
-            onMaxCapturePagesChange = { maxCapturePagesText = it }
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        StatusCard(
-            overlayEnabled = overlayEnabled,
-            overlayRunning = overlayRunning
-        )
-        LlmConfigCard(
-            endpoint = llmEndpoint,
-            apiKey = llmApiKey,
-            model = llmModel,
-            onEndpointChange = { llmEndpoint = it },
-            onApiKeyChange = { llmApiKey = it },
-            onModelChange = { llmModel = it }
-        )
-        Spacer(modifier = Modifier.weight(1f))
-        Text(
-            text = stringResource(R.string.home_footer),
-            style = MaterialTheme.typography.bodySmall
-        )
     }
 }
 
 @Composable
-private fun StatusCard(
-    overlayEnabled: Boolean,
-    overlayRunning: Boolean
+private fun SettingToggleRow(
+    label: String,
+    description: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onToggle: (Boolean) -> Unit,
+    successGreen: Color
 ) {
-    Card(
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(text = stringResource(R.string.home_status_title), style = MaterialTheme.typography.titleMedium)
-            StatusRow(
-                label = stringResource(R.string.home_status_permission),
-                value = if (overlayEnabled) {
-                    stringResource(R.string.home_status_permission_granted)
-                } else {
-                    stringResource(R.string.home_status_permission_denied)
-                }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontFamily = FontFamily.Serif,
+                    color = Color(0xFF2F3441)
+                )
             )
-            StatusRow(
-                label = stringResource(R.string.home_status_window),
-                value = if (overlayRunning) {
-                    stringResource(R.string.home_status_window_running)
-                } else {
-                    stringResource(R.string.home_status_window_stopped)
-                }
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Serif,
+                    color = Color(0xFF4B5563)
+                )
             )
         }
+        Switch(
+            checked = checked,
+            onCheckedChange = onToggle,
+            enabled = enabled,
+            thumbContent = {
+                if (checked) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = successGreen
+                    )
+                }
+            }
+        )
     }
 }
+
 
 @Composable
 private fun LlmConfigCard(
@@ -289,7 +379,10 @@ private fun LlmConfigCard(
     model: String,
     onEndpointChange: (String) -> Unit,
     onApiKeyChange: (String) -> Unit,
-    onModelChange: (String) -> Unit
+    onModelChange: (String) -> Unit,
+    cardColor: Color,
+    cardShape: androidx.compose.foundation.shape.RoundedCornerShape,
+    accentColor: Color
 ) {
     val endpointError = remember(endpoint) { !isValidEndpoint(endpoint) }
     val modelError = remember(model) { model.isBlank() }
@@ -297,18 +390,25 @@ private fun LlmConfigCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        shape = cardShape,
+        colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(text = stringResource(R.string.llm_title), style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = stringResource(R.string.llm_title),
+                style = MaterialTheme.typography.titleMedium.copy(
+                    color = accentColor,
+                    fontFamily = FontFamily.Serif
+                )
+            )
             Text(
                 text = stringResource(R.string.llm_required),
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Serif
+                )
             )
             OutlinedTextField(
                 value = endpoint,
@@ -318,6 +418,11 @@ private fun LlmConfigCard(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 isError = endpointError,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = accentColor,
+                    focusedLabelColor = accentColor,
+                    cursorColor = accentColor
+                ),
                 supportingText = {
                     if (endpointError) {
                         Text(text = stringResource(R.string.llm_endpoint_error))
@@ -332,6 +437,11 @@ private fun LlmConfigCard(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 isError = modelError,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = accentColor,
+                    focusedLabelColor = accentColor,
+                    cursorColor = accentColor
+                ),
                 supportingText = {
                     if (modelError) {
                         Text(text = stringResource(R.string.llm_model_error))
@@ -347,6 +457,11 @@ private fun LlmConfigCard(
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 isError = apiKeyError,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = accentColor,
+                    focusedLabelColor = accentColor,
+                    cursorColor = accentColor
+                ),
                 supportingText = {
                     if (apiKeyError) {
                         Text(text = stringResource(R.string.llm_api_key_error))
@@ -355,7 +470,9 @@ private fun LlmConfigCard(
             )
             Text(
                 text = stringResource(R.string.llm_helper_text),
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Serif
+                )
             )
         }
     }
@@ -364,13 +481,16 @@ private fun LlmConfigCard(
 @Composable
 private fun AccessibilityToggle(
     enabled: Boolean,
-    onOpenAccessibility: () -> Unit
+    onOpenAccessibility: () -> Unit,
+    cardColor: Color,
+    cardShape: androidx.compose.foundation.shape.RoundedCornerShape,
+    accentColor: Color,
+    successGreen: Color
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        shape = cardShape,
+        colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -378,11 +498,16 @@ private fun AccessibilityToggle(
         ) {
             Text(
                 text = stringResource(R.string.accessibility_title),
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleMedium.copy(
+                    color = accentColor,
+                    fontFamily = FontFamily.Serif
+                )
             )
             Text(
                 text = stringResource(R.string.accessibility_desc),
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Serif
+                )
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -394,15 +519,23 @@ private fun AccessibilityToggle(
                     } else {
                         stringResource(R.string.accessibility_disabled)
                     },
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Serif
+                    )
                 )
                 Switch(
                     checked = enabled,
-                    onCheckedChange = { onOpenAccessibility() }
+                    onCheckedChange = { onOpenAccessibility() },
+                    thumbContent = {
+                        if (enabled) {
+                            Icon(
+                                imageVector = Icons.Filled.Check,
+                                contentDescription = null,
+                                tint = successGreen
+                            )
+                        }
+                    }
                 )
-            }
-            TextButton(onClick = onOpenAccessibility) {
-                Text(text = stringResource(R.string.accessibility_open_settings))
             }
         }
     }
@@ -411,25 +544,32 @@ private fun AccessibilityToggle(
 @Composable
 private fun OcrEngineCard(
     selected: String,
-    onSelect: (String) -> Unit
+    onSelect: (String) -> Unit,
+    cardColor: Color,
+    cardShape: androidx.compose.foundation.shape.RoundedCornerShape,
+    accentColor: Color
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        shape = cardShape,
+        colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
                 text = stringResource(R.string.ocr_engine_title),
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleMedium.copy(
+                    color = accentColor,
+                    fontFamily = FontFamily.Serif
+                )
             )
             Text(
                 text = stringResource(R.string.ocr_engine_desc),
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Serif
+                )
             )
             OcrEngineOption(
                 label = stringResource(R.string.ocr_engine_mlkit),
@@ -456,7 +596,12 @@ private fun OcrEngineOption(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = label, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Serif
+            )
+        )
         RadioButton(selected = selected, onClick = onClick)
     }
 }
@@ -464,25 +609,32 @@ private fun OcrEngineOption(
 @Composable
 private fun CaptureSettingsCard(
     maxCapturePagesText: String,
-    onMaxCapturePagesChange: (String) -> Unit
+    onMaxCapturePagesChange: (String) -> Unit,
+    cardColor: Color,
+    cardShape: androidx.compose.foundation.shape.RoundedCornerShape,
+    accentColor: Color
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        shape = cardShape,
+        colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
                 text = stringResource(R.string.capture_settings_title),
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleMedium.copy(
+                    color = accentColor,
+                    fontFamily = FontFamily.Serif
+                )
             )
             Text(
                 text = stringResource(R.string.capture_settings_desc),
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Serif
+                )
             )
             OutlinedTextField(
                 value = maxCapturePagesText,
@@ -497,7 +649,9 @@ private fun CaptureSettingsCard(
             )
             Text(
                 text = stringResource(R.string.capture_settings_helper_text),
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Serif
+                )
             )
         }
     }
@@ -510,11 +664,16 @@ private fun isValidEndpoint(endpoint: String): Boolean {
 }
 
 @Composable
-private fun StatusRow(label: String, value: String) {
-    Column {
-        Text(text = label, style = MaterialTheme.typography.labelMedium)
-        Text(text = value, style = MaterialTheme.typography.bodyMedium)
-    }
+private fun SectionTitle(text: String, color: Color) {
+    Text(
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelMedium.copy(
+            color = color,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.4.sp
+        )
+    )
 }
 
 private fun isOverlayServiceRunning(context: Context): Boolean {
