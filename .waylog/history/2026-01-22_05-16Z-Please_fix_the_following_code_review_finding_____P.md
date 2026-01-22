@@ -1192,3 +1192,19 @@ Updated `c:\Users\user\AndroidStudioProjects\TermCat\app\src\main\java\org\p2er1
 If you want the numeric keyboard back, we can add the right Compose UI dependency in Gradle instead.
 
 ---
+
+
+**User**
+
+现在的主界面不能下滑，而且组件太多，导致下面的组件用户无法点击到
+
+---
+
+
+**OpenAI Codex**
+
+Enabled vertical scrolling on the main screen so users can reach all components. Updated `c:\Users\user\AndroidStudioProjects\TermCat\app\src\main\java\org\p2er1n\termcat\MainActivity.kt`.
+
+If you want, I can also add section headers or collapse/expand cards to reduce vertical length.
+
+---
