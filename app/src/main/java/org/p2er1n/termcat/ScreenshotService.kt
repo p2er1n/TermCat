@@ -73,6 +73,8 @@ class ScreenshotService : Service() {
             stopSelf()
         }
     }
+    private var captureImageFile: File? = null
+    private var captureTextFile: File? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -143,39 +145,39 @@ class ScreenshotService : Service() {
     }
 
     private fun captureAndProcess() {
-        if (cancelled) {
-            stopSelf()
-            return
-        }
-        val bitmaps = captureBitmaps()
-        if (cancelled) {
-            stopSelf()
-            return
-        }
-        stopProjectionSession()
-        sendCaptureDone(bitmaps.size)
-        val ocrText = runOcrBatch(bitmaps)
-        if (cancelled) {
-            stopSelf()
-            return
-        }
-        logCapturedText("ocr", ocrText)
-        if (ocrText.isNotEmpty()) {
-            val textFile = File(cacheDir, "capture_${System.currentTimeMillis()}.txt")
-            textFile.writeText(ocrText)
-        }
-        if (cancelled) {
-            stopSelf()
-            return
-        }
-        runLlm(ocrText)
+        try {
+            if (cancelled) {
+                return
+            }
+            val bitmaps = captureBitmaps()
+            if (cancelled) {
+                return
+            }
+            stopProjectionSession()
+            sendCaptureDone(bitmaps.size)
+            val ocrText = runOcrBatch(bitmaps)
+            if (cancelled) {
+                return
+            }
+            logCapturedText("ocr", ocrText)
+            if (ocrText.isNotEmpty()) {
+                val textFile = File(cacheDir, "capture_${System.currentTimeMillis()}.txt")
+                textFile.writeText(ocrText)
+                captureTextFile = textFile
+            }
+            if (cancelled) {
+                return
+            }
+            runLlm(ocrText)
 
-        Handler(Looper.getMainLooper()).post {
-            val messageRes = if (ocrText.isNotEmpty()) R.string.ocr_done else R.string.ocr_failed
-            Toast.makeText(this, getString(messageRes), Toast.LENGTH_SHORT).show()
+            Handler(Looper.getMainLooper()).post {
+                val messageRes = if (ocrText.isNotEmpty()) R.string.ocr_done else R.string.ocr_failed
+                Toast.makeText(this, getString(messageRes), Toast.LENGTH_SHORT).show()
+            }
+        } finally {
+            cleanupCaptureFiles()
+            stopSelf()
         }
-
-        stopSelf()
     }
 
     private fun captureBitmaps(): List<Bitmap> {
@@ -228,6 +230,7 @@ class ScreenshotService : Service() {
                 FileOutputStream(outputFile).use { out ->
                     bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
                 }
+                captureImageFile = outputFile
                 savedImage = true
             }
 
@@ -418,6 +421,13 @@ class ScreenshotService : Service() {
             text
         }
         Log.d(TAG, "Captured text ($source):\n$trimmed")
+    }
+
+    private fun cleanupCaptureFiles() {
+        captureImageFile?.delete()
+        captureImageFile = null
+        captureTextFile?.delete()
+        captureTextFile = null
     }
 
     private fun releaseResources() {
