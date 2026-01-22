@@ -213,6 +213,14 @@ class ScreenshotService : Service() {
             if (cancelled) {
                 break
             }
+            if (canAutoScroll && hasScrolled && AccessibilityScrollService.isAtScrollEnd()) {
+                endHits += 1
+                Log.d(TAG, "Auto-scroll end signal before capture: hit $endHits.")
+                if (endHits >= 2) {
+                    Log.d(TAG, "Auto-scroll stopped before capture: reached scroll end.")
+                    break
+                }
+            }
             Log.d(TAG, "captureBitmaps: page ${index + 1}/$maxPages")
             val bitmap = captureBitmapWithRetry() ?: break
             if (!savedImage) {
