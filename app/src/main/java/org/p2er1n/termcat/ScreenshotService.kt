@@ -16,6 +16,7 @@ import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
@@ -43,6 +44,9 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
 import android.util.Log
+import android.os.ResultReceiver
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicReference
 
 class ScreenshotService : Service() {
     private val handlerThread = HandlerThread("ScreenCapture")
@@ -50,6 +54,8 @@ class ScreenshotService : Service() {
     private var mediaProjection: MediaProjection? = null
     private var imageReader: ImageReader? = null
     private var virtualDisplay: VirtualDisplay? = null
+    @Volatile
+    private var cancelled = false
     private val latinRecognizer: TextRecognizer by lazy {
         TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     }
@@ -75,6 +81,12 @@ class ScreenshotService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP_CAPTURE) {
+            cancelled = true
+            stopService(Intent(this, PaddleOcrService::class.java))
+            stopSelf()
+            return START_NOT_STICKY
+        }
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, -1) ?: -1
         val resultData = intent?.getParcelableExtra<Intent>(EXTRA_RESULT_DATA)
         if (resultCode != Activity.RESULT_OK || resultData == null) {
@@ -82,6 +94,7 @@ class ScreenshotService : Service() {
             return START_NOT_STICKY
         }
 
+        cancelled = false
         startForegroundCompat()
         backgroundHandler.post {
             startCapture(resultCode, resultData)
@@ -130,14 +143,30 @@ class ScreenshotService : Service() {
     }
 
     private fun captureAndProcess() {
+        if (cancelled) {
+            stopSelf()
+            return
+        }
         val bitmaps = captureBitmaps()
+        if (cancelled) {
+            stopSelf()
+            return
+        }
         stopProjectionSession()
         sendCaptureDone(bitmaps.size)
         val ocrText = runOcrBatch(bitmaps)
+        if (cancelled) {
+            stopSelf()
+            return
+        }
         logCapturedText("ocr", ocrText)
         if (ocrText.isNotEmpty()) {
             val textFile = File(cacheDir, "capture_${System.currentTimeMillis()}.txt")
             textFile.writeText(ocrText)
+        }
+        if (cancelled) {
+            stopSelf()
+            return
         }
         runLlm(ocrText)
 
@@ -181,6 +210,9 @@ class ScreenshotService : Service() {
         }
 
         for (index in 0 until maxPages) {
+            if (cancelled) {
+                break
+            }
             Log.d(TAG, "captureBitmaps: page ${index + 1}/$maxPages")
             val bitmap = captureBitmapWithRetry() ?: break
             if (!savedImage) {
@@ -295,6 +327,10 @@ class ScreenshotService : Service() {
         val total = bitmaps.size
         sendOcrProgress(0, total)
         for ((index, bitmap) in bitmaps.withIndex()) {
+            if (cancelled) {
+                bitmap.recycle()
+                break
+            }
             val ocrText = runOcr(bitmap)
             if (ocrText.isNotBlank()) {
                 texts.add(ocrText)
@@ -405,9 +441,14 @@ class ScreenshotService : Service() {
     }
 
     private fun runOcr(bitmap: Bitmap): String {
-        if (AppPrefs.getOcrEngine(this) == AppPrefs.OCR_ENGINE_PADDLE) {
-            return paddleOcrEngine.run(bitmap)
+        return if (AppPrefs.getOcrEngine(this) == AppPrefs.OCR_ENGINE_PADDLE) {
+            runPaddleOcrWithRetry(bitmap)
+        } else {
+            runMlKitOcr(bitmap)
         }
+    }
+
+    private fun runMlKitOcr(bitmap: Bitmap): String {
         val image = InputImage.fromBitmap(bitmap, 0)
         return try {
             val latinText = Tasks.await(
@@ -426,6 +467,63 @@ class ScreenshotService : Service() {
             combined.joinToString(separator = "\n")
         } catch (exception: Exception) {
             ""
+        }
+    }
+
+    private fun runPaddleOcrWithRetry(bitmap: Bitmap): String {
+        if (cancelled) return ""
+        val imagePath = writeBitmapForOcr(bitmap) ?: return ""
+        try {
+            repeat(PADDLE_RETRY_COUNT) { attempt ->
+                if (cancelled) return ""
+                val result = runPaddleOcrOnce(imagePath)
+                if (result.isNotBlank()) {
+                    return result
+                }
+                Log.w(TAG, "Paddle OCR returned empty, attempt=${attempt + 1}")
+            }
+            return ""
+        } finally {
+            File(imagePath).delete()
+        }
+    }
+
+    private fun runPaddleOcrOnce(imagePath: String): String {
+        val latch = CountDownLatch(1)
+        val resultRef = AtomicReference("")
+        val receiver = object : ResultReceiver(Handler(Looper.getMainLooper())) {
+            override fun onReceiveResult(resultCode: Int, resultData: Bundle?) {
+                val text = resultData?.getString(PaddleOcrService.EXTRA_RESULT_TEXT).orEmpty()
+                resultRef.set(text)
+                latch.countDown()
+            }
+        }
+
+        val intent = Intent(this, PaddleOcrService::class.java).apply {
+            putExtra(PaddleOcrService.EXTRA_IMAGE_PATH, imagePath)
+            putExtra(PaddleOcrService.EXTRA_RESULT_RECEIVER, receiver)
+        }
+        startService(intent)
+
+        val ok = latch.await(PADDLE_PROCESS_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        if (!ok) {
+            Log.w(TAG, "Paddle OCR timed out after ${PADDLE_PROCESS_TIMEOUT_MS}ms")
+        }
+        return resultRef.get()
+    }
+
+    private fun writeBitmapForOcr(bitmap: Bitmap): String? {
+        val outputFile = File(cacheDir, "paddle_ocr_${System.currentTimeMillis()}.png")
+        return try {
+            FileOutputStream(outputFile).use { out ->
+                if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) {
+                    return null
+                }
+            }
+            outputFile.absolutePath
+        } catch (exception: Exception) {
+            Log.e(TAG, "Failed to write bitmap for OCR", exception)
+            null
         }
     }
 
@@ -538,6 +636,7 @@ class ScreenshotService : Service() {
     }
 
     private fun sendLlmResult(text: String) {
+        if (cancelled) return
         val intent = Intent(FloatingWindowService.ACTION_LLM_RESULT).apply {
             setPackage(packageName)
             putExtra(FloatingWindowService.EXTRA_LLM_TEXT, text)
@@ -546,6 +645,7 @@ class ScreenshotService : Service() {
     }
 
     private fun sendLlmError(message: String, ocrText: String) {
+        if (cancelled) return
         val intent = Intent(FloatingWindowService.ACTION_LLM_ERROR).apply {
             setPackage(packageName)
             putExtra(FloatingWindowService.EXTRA_LLM_ERROR, message)
@@ -555,6 +655,7 @@ class ScreenshotService : Service() {
     }
 
     private fun sendCaptureDone(totalPages: Int) {
+        if (cancelled) return
         val intent = Intent(FloatingWindowService.ACTION_CAPTURE_DONE).apply {
             setPackage(packageName)
             putExtra(FloatingWindowService.EXTRA_OCR_TOTAL, totalPages)
@@ -563,6 +664,7 @@ class ScreenshotService : Service() {
     }
 
     private fun sendOcrProgress(done: Int, total: Int) {
+        if (cancelled) return
         val intent = Intent(FloatingWindowService.ACTION_OCR_PROGRESS).apply {
             setPackage(packageName)
             putExtra(FloatingWindowService.EXTRA_OCR_DONE, done)
@@ -572,6 +674,7 @@ class ScreenshotService : Service() {
     }
 
     private fun sendLlmStatus(status: String) {
+        if (cancelled) return
         val intent = Intent(FloatingWindowService.ACTION_LLM_STATUS).apply {
             setPackage(packageName)
             putExtra(FloatingWindowService.EXTRA_LLM_STATUS, status)
@@ -618,6 +721,7 @@ class ScreenshotService : Service() {
     companion object {
         const val EXTRA_RESULT_CODE = "extra_result_code"
         const val EXTRA_RESULT_DATA = "extra_result_data"
+        const val ACTION_STOP_CAPTURE = "org.p2er1n.termcat.STOP_CAPTURE"
         private const val NOTIFICATION_ID = 201
         private const val OCR_TIMEOUT_SECONDS = 8L
         private const val LLM_TIMEOUT_SECONDS = 20L
@@ -628,5 +732,7 @@ class ScreenshotService : Service() {
         private const val MAX_LOG_CHARS = 4000
         private const val TAG = "ScreenshotService"
         private const val LOG_CHUNK_SIZE = 800
+        private const val PADDLE_PROCESS_TIMEOUT_MS = 12000L
+        private const val PADDLE_RETRY_COUNT = 2
     }
 }

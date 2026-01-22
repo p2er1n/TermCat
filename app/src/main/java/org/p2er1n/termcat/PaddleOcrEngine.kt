@@ -7,6 +7,8 @@ import android.os.Build
 import java.lang.reflect.Proxy
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 class PaddleOcrEngine(private val context: Context) {
     @Volatile
@@ -16,28 +18,30 @@ class PaddleOcrEngine(private val context: Context) {
     private val initLock = Any()
 
     fun run(bitmap: Bitmap): String {
-        if (!ensureInitialized()) {
-            return ""
+        return RUN_LOCK.withLock {
+            if (!ensureInitialized()) {
+                return@withLock ""
+            }
+            val instance = ocrInstance ?: return@withLock ""
+            val runSync = instance.javaClass.methods.firstOrNull {
+                it.name == "runSync" && it.parameterTypes.size == 1
+            }
+            if (runSync != null) {
+                return@withLock extractSimpleText(runSync.invoke(instance, bitmap))
+            }
+            val run = instance.javaClass.methods.firstOrNull {
+                it.name == "run" && it.parameterTypes.size == 2
+            } ?: return@withLock ""
+            val latch = CountDownLatch(1)
+            var resultText = ""
+            val callback = createRunCallback(run.parameterTypes[1]) { text ->
+                resultText = text
+                latch.countDown()
+            }
+            run.invoke(instance, bitmap, callback)
+            latch.await(RUN_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            resultText
         }
-        val instance = ocrInstance ?: return ""
-        val runSync = instance.javaClass.methods.firstOrNull {
-            it.name == "runSync" && it.parameterTypes.size == 1
-        }
-        if (runSync != null) {
-            return extractSimpleText(runSync.invoke(instance, bitmap))
-        }
-        val run = instance.javaClass.methods.firstOrNull {
-            it.name == "run" && it.parameterTypes.size == 2
-        } ?: return ""
-        val latch = CountDownLatch(1)
-        var resultText = ""
-        val callback = createRunCallback(run.parameterTypes[1]) { text ->
-            resultText = text
-            latch.countDown()
-        }
-        run.invoke(instance, bitmap, callback)
-        latch.await(RUN_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-        return resultText
     }
 
     private fun ensureInitialized(): Boolean {
@@ -199,6 +203,7 @@ class PaddleOcrEngine(private val context: Context) {
 
     companion object {
         private const val TAG = "PaddleOcrEngine"
+        private val RUN_LOCK = ReentrantLock()
         private const val OCR_CONFIG_CLASS = "com.equationl.paddleocr4android.OcrConfig"
         private const val CPU_POWER_MODE_CLASS = "com.equationl.paddleocr4android.CpuPowerMode"
         private const val CPU_POWER_MODE_FULL = "LITE_POWER_FULL"

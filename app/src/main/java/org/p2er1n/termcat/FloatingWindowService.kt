@@ -81,7 +81,7 @@ class FloatingWindowService : Service() {
             .inflate(R.layout.overlay_result_sheet, null, false)
         resultView.visibility = View.GONE
         resultView.findViewById<MaterialButton>(R.id.result_close).setOnClickListener {
-            hideResult()
+            stopCaptureAndHide()
         }
         resultView.findViewById<MaterialButton>(R.id.result_copy).setOnClickListener {
             copyResult()
@@ -188,6 +188,13 @@ class FloatingWindowService : Service() {
         resultView.visibility = View.GONE
     }
 
+    private fun stopCaptureAndHide() {
+        sendStopCapture()
+        lastResultFull = ""
+        hideResult()
+        restoreOverlay()
+    }
+
     private fun hideOverlaysForCapture() {
         overlayView.visibility = View.GONE
         resultView.visibility = View.GONE
@@ -292,6 +299,13 @@ class FloatingWindowService : Service() {
             putExtra(EXTRA_OVERLAY_RUNNING, running)
         }
         sendBroadcast(intent)
+    }
+
+    private fun sendStopCapture() {
+        val intent = Intent(this, ScreenshotService::class.java).apply {
+            action = ScreenshotService.ACTION_STOP_CAPTURE
+        }
+        startService(intent)
     }
 
 

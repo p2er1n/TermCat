@@ -14,7 +14,7 @@
     <string name="result_copy">Copy</string>
     <string name="result_copied">Copied</string>
     <string name="result_view_more">View more</string>
-    <string name="result_close">Close</string>
+    <string name="result_close">Stop</string>
     <string name="home_title">TermCat</string>
     <string name="home_subtitle">Capture terms in any app and highlight risky clauses instantly.</string>
     <string name="home_primary_action_start">Enable Floating Window</string>
