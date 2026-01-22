@@ -14,7 +14,7 @@
     <string name="result_copy">Copy</string>
     <string name="result_copied">Copied</string>
     <string name="result_view_more">View full</string>
-    <string name="result_close">Stop</string>
+    <string name="result_close">Close</string>
     <string name="home_title">TermCat</string>
     <string name="home_subtitle">Capture terms in any app and highlight risky clauses instantly.</string>
     <string name="home_primary_action_start">Enable Floating Window</string>
@@ -58,4 +58,5 @@
     <string name="llm_error_response">LLM returned an empty response.</string>
     <string name="llm_error_generic">LLM request failed.</string>
     <string name="accessibility_scroll_required">Enable the accessibility scroll service to capture long terms.</string>
+    <string name="result_stop">Stop</string>
 </resources>

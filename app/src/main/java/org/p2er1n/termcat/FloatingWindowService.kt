@@ -21,6 +21,8 @@ import android.content.IntentFilter
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import android.widget.TextView
+import android.text.method.LinkMovementMethod
+import io.noties.markwon.Markwon
 
 class FloatingWindowService : Service() {
     private lateinit var windowManager: WindowManager
@@ -30,6 +32,7 @@ class FloatingWindowService : Service() {
     private lateinit var resultParams: WindowManager.LayoutParams
     private var receiverRegistered = false
     private var lastResultFull = ""
+    private val markwon by lazy { Markwon.create(this) }
 
     override fun onCreate() {
         super.onCreate()
@@ -77,8 +80,10 @@ class FloatingWindowService : Service() {
         resultView = LayoutInflater.from(themedContext)
             .inflate(R.layout.overlay_result_sheet, null, false)
         resultView.visibility = View.GONE
+        resultView.findViewById<TextView>(R.id.result_body).movementMethod = LinkMovementMethod.getInstance()
         val moreOverlay = resultView.findViewById<View>(R.id.result_more_overlay)
-        resultView.findViewById<MaterialButton>(R.id.result_close).setOnClickListener {
+        val stopButton = resultView.findViewById<MaterialButton>(R.id.result_close)
+        stopButton.setOnClickListener {
             stopCaptureAndHide()
         }
         resultView.findViewById<MaterialButton>(R.id.result_copy).setOnClickListener {
@@ -173,6 +178,7 @@ class FloatingWindowService : Service() {
         resultView.findViewById<MaterialButton>(R.id.result_copy).isEnabled = false
         resultView.findViewById<View>(R.id.result_more_overlay).isEnabled = false
         resultView.findViewById<View>(R.id.result_more_overlay).visibility = View.GONE
+        updateStopButton()
         resultView.visibility = View.VISIBLE
         overlayView.visibility = View.VISIBLE
     }
@@ -181,6 +187,7 @@ class FloatingWindowService : Service() {
         resultView.findViewById<TextView>(R.id.result_progress).text =
             getString(R.string.result_progress_ocr, done, total)
         resultView.findViewById<View>(R.id.result_more_overlay).visibility = View.GONE
+        updateStopButton()
         resultView.visibility = View.VISIBLE
         overlayView.visibility = View.VISIBLE
     }
@@ -188,6 +195,7 @@ class FloatingWindowService : Service() {
     private fun updateLlmStatus(status: String) {
         resultView.findViewById<TextView>(R.id.result_progress).text = status
         resultView.findViewById<View>(R.id.result_more_overlay).visibility = View.GONE
+        updateStopButton()
         resultView.visibility = View.VISIBLE
         overlayView.visibility = View.VISIBLE
     }
@@ -196,18 +204,34 @@ class FloatingWindowService : Service() {
         val body = text.ifBlank { getString(R.string.result_empty) }
         resultView.findViewById<TextView>(R.id.result_title).text =
             getString(R.string.result_title)
-        resultView.findViewById<TextView>(R.id.result_body).text = body
+        markwon.setMarkdown(resultView.findViewById(R.id.result_body), body)
         resultView.findViewById<TextView>(R.id.result_progress).text = ""
         resultView.findViewById<MaterialButton>(R.id.result_copy).isEnabled = text.isNotBlank()
         resultView.findViewById<View>(R.id.result_more_overlay).isEnabled = text.isNotBlank()
         resultView.findViewById<View>(R.id.result_more_overlay).visibility =
             if (text.isNotBlank()) View.VISIBLE else View.GONE
+        updateStopButton()
         resultView.visibility = View.VISIBLE
         overlayView.visibility = View.VISIBLE
     }
 
     private fun hideResult() {
         resultView.visibility = View.GONE
+    }
+
+    private fun updateStopButton() {
+        val button = resultView.findViewById<MaterialButton>(R.id.result_close)
+        val progressView = resultView.findViewById<TextView>(R.id.result_progress)
+        val progressText = progressView.text.toString()
+        val isProcessing = progressText.isNotBlank()
+        progressView.visibility = if (isProcessing) View.VISIBLE else View.GONE
+        if (isProcessing) {
+            button.text = getString(R.string.result_stop)
+            button.setOnClickListener { stopCaptureAndHide() }
+        } else {
+            button.text = getString(R.string.result_close)
+            button.setOnClickListener { hideResult() }
+        }
     }
 
     private fun stopCaptureAndHide() {
@@ -244,6 +268,7 @@ class FloatingWindowService : Service() {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             .putExtra(ResultDetailActivity.EXTRA_RESULT_TEXT, lastResultFull)
         startActivity(intent)
+        hideResult()
     }
 
     private fun registerResultReceiver() {

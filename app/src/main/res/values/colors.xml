@@ -7,4 +7,8 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="overlay_accent">#1C274C</color>
+    <color name="overlay_base">#A0A6B6</color>
+    <color name="overlay_base_translucent">#CC898FA2</color>
+    <color name="overlay_base_dark">#7C8294</color>
 </resources>

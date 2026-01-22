@@ -7,7 +7,7 @@
     android:background="@null"
     android:clickable="true"
     android:focusable="true"
-    android:foreground="?attr/selectableItemBackgroundBorderless">
+    android:foreground="@null">
 
     <ImageView
         android:id="@+id/overlay_icon"
@@ -15,8 +15,8 @@
         android:layout_height="match_parent"
         android:background="@null"
         android:contentDescription="@string/app_name"
-        android:padding="14dp"
-        android:scaleType="centerInside"
+        android:padding="0dp"
+        android:scaleType="fitXY"
         android:src="@drawable/overlay_icon"
         android:tint="@null" />
 </FrameLayout>

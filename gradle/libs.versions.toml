@@ -15,6 +15,7 @@ lifecycleViewModel = "2.8.4"
 mlkitText = "16.0.0"
 mlkitTextChinese = "16.0.0"
 openaiJava = "0.33.0"
+markwon = "4.6.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -38,6 +39,7 @@ androidx-lifecycle-viewmodel-android = { group = "androidx.lifecycle", name = "l
 mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitText" }
 mlkit-text-recognition-chinese = { group = "com.google.mlkit", name = "text-recognition-chinese", version.ref = "mlkitTextChinese" }
 openai-java = { group = "com.openai", name = "openai-java", version.ref = "openaiJava" }
+markwon = { group = "io.noties.markwon", name = "core", version.ref = "markwon" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

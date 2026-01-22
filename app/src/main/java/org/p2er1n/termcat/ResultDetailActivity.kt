@@ -1,8 +1,10 @@
 package org.p2er1n.termcat
 
 import android.os.Bundle
+import android.text.method.LinkMovementMethod
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import io.noties.markwon.Markwon
 
 class ResultDetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -10,7 +12,9 @@ class ResultDetailActivity : ComponentActivity() {
         setContentView(R.layout.activity_result_detail)
 
         val body = intent.getStringExtra(EXTRA_RESULT_TEXT).orEmpty()
-        findViewById<TextView>(R.id.result_detail_body).text = body
+        val textView = findViewById<TextView>(R.id.result_detail_body)
+        textView.movementMethod = LinkMovementMethod.getInstance()
+        Markwon.create(this).setMarkdown(textView, body)
     }
 
     companion object {
