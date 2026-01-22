@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -19,7 +20,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -28,6 +28,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -65,9 +66,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.runtime.remember
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Animatable
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import android.app.Activity
@@ -156,6 +159,11 @@ fun HomeScreen(
     val cardColor = Color(0xFFF6F7FB)
     val successGreen = Color(0xFF16A34A)
     val cardShape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
+    val errorRed = Color(0xFFDC2626)
+    var permissionError by remember { mutableStateOf(false) }
+    var accessibilityError by remember { mutableStateOf(false) }
+    var permissionShakeKey by remember { mutableStateOf(0) }
+    var accessibilityShakeKey by remember { mutableStateOf(0) }
 
     LaunchedEffect(Unit) {
         overlayEnabled = Settings.canDrawOverlays(context)
@@ -166,6 +174,16 @@ fun HomeScreen(
         llmModel = AppPrefs.getLlmModel(context)
         ocrEngine = AppPrefs.getOcrEngine(context)
         maxCapturePagesText = AppPrefs.getMaxCapturePages(context).toString()
+    }
+    LaunchedEffect(overlayEnabled) {
+        if (overlayEnabled) {
+            permissionError = false
+        }
+    }
+    LaunchedEffect(accessibilityEnabled) {
+        if (accessibilityEnabled) {
+            accessibilityError = false
+        }
     }
 
     LaunchedEffect(llmEndpoint) {
@@ -272,7 +290,10 @@ fun HomeScreen(
                         checked = overlayEnabled,
                         enabled = true,
                         onToggle = { onOpenSettings() },
-                        successGreen = successGreen
+                        successGreen = successGreen,
+                        errorRed = errorRed,
+                        isError = permissionError && !overlayEnabled,
+                        shakeKey = permissionShakeKey
                     )
                     SettingToggleRow(
                         label = stringResource(R.string.accessibility_title),
@@ -280,7 +301,10 @@ fun HomeScreen(
                         checked = accessibilityEnabled,
                         enabled = true,
                         onToggle = { onOpenAccessibility() },
-                        successGreen = successGreen
+                        successGreen = successGreen,
+                        errorRed = errorRed,
+                        isError = accessibilityError && !accessibilityEnabled,
+                        shakeKey = accessibilityShakeKey
                     )
                     Row(
                         modifier = Modifier
@@ -305,7 +329,7 @@ fun HomeScreen(
                                 )
                             )
                         }
-                        val enabled = overlayRunning || accessibilityEnabled
+                        val enabled = true
                         val iconAlpha = if (overlayRunning) 1f else 0.35f
                         val interactionSource = remember { MutableInteractionSource() }
                         val pressed by interactionSource.collectIsPressedAsState()
@@ -329,6 +353,15 @@ fun HomeScreen(
                                 ) {
                                     if (overlayRunning) {
                                         onStopOverlay()
+                                    } else if (!overlayEnabled || !accessibilityEnabled) {
+                                        if (!overlayEnabled) {
+                                            permissionError = true
+                                            permissionShakeKey += 1
+                                        }
+                                        if (!accessibilityEnabled) {
+                                            accessibilityError = true
+                                            accessibilityShakeKey += 1
+                                        }
                                     } else {
                                         onStartOverlay()
                                     }
@@ -436,10 +469,45 @@ private fun SettingToggleRow(
     checked: Boolean,
     enabled: Boolean,
     onToggle: (Boolean) -> Unit,
-    successGreen: Color
+    successGreen: Color,
+    errorRed: Color,
+    isError: Boolean,
+    shakeKey: Int
 ) {
+    val density = LocalDensity.current
+    val offsetX = remember { Animatable(0f) }
+    LaunchedEffect(shakeKey) {
+        if (shakeKey > 0) {
+            val distance = with(density) { 6.dp.toPx() }
+            offsetX.snapTo(0f)
+            offsetX.animateTo(distance, animationSpec = tween(60))
+            offsetX.animateTo(-distance, animationSpec = tween(60))
+            offsetX.animateTo(distance * 0.6f, animationSpec = tween(60))
+            offsetX.animateTo(-distance * 0.6f, animationSpec = tween(60))
+            offsetX.animateTo(0f, animationSpec = tween(60))
+        }
+    }
+    val labelColor = if (isError) errorRed else Color(0xFF2F3441)
+    val descriptionColor = if (isError) errorRed.copy(alpha = 0.85f) else Color(0xFF4B5563)
+    val switchColors = if (isError) {
+        SwitchDefaults.colors(
+            uncheckedThumbColor = errorRed,
+            uncheckedTrackColor = errorRed.copy(alpha = 0.25f),
+            uncheckedBorderColor = errorRed,
+            checkedThumbColor = successGreen,
+            checkedTrackColor = successGreen.copy(alpha = 0.3f),
+            checkedBorderColor = successGreen
+        )
+    } else {
+        SwitchDefaults.colors(
+            checkedThumbColor = successGreen,
+            checkedTrackColor = successGreen.copy(alpha = 0.3f)
+        )
+    }
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .offset { IntOffset(offsetX.value.toInt(), 0) },
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -448,14 +516,14 @@ private fun SettingToggleRow(
                 text = label,
                 style = MaterialTheme.typography.titleSmall.copy(
                     fontFamily = FontFamily.Serif,
-                    color = Color(0xFF2F3441)
+                    color = labelColor
                 )
             )
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Serif,
-                    color = Color(0xFF4B5563)
+                    color = descriptionColor
                 )
             )
         }
@@ -463,6 +531,7 @@ private fun SettingToggleRow(
             checked = checked,
             onCheckedChange = onToggle,
             enabled = enabled,
+            colors = switchColors,
             thumbContent = {
                 if (checked) {
                     Icon(
