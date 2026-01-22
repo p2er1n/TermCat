@@ -61,4 +61,9 @@
     <string name="llm_error_generic">LLM request failed.</string>
     <string name="accessibility_scroll_required">Enable the accessibility scroll service to capture long terms.</string>
     <string name="result_stop">Stop</string>
+    <string name="language_system">System</string>
+    <string name="language_english">English</string>
+    <string name="language_chinese">Chinese (Simplified)</string>
+    <string name="language_toggle_en">EN</string>
+    <string name="language_toggle_zh">中</string>
 </resources>

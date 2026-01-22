@@ -1,10 +1,9 @@
 package org.p2er1n.termcat
 
-import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
-import androidx.activity.ComponentActivity
+import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -41,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -68,6 +68,10 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.remember
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
+import android.app.Activity
+import android.content.Intent
 import org.p2er1n.termcat.ui.theme.TermCatTheme
 import android.app.ActivityManager
 import android.content.Context
@@ -78,7 +82,7 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.view.accessibility.AccessibilityManager
 import android.widget.Toast
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -239,15 +243,22 @@ fun HomeScreen(
                     modifier = Modifier.padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        text = stringResource(R.string.home_title),
-                        style = MaterialTheme.typography.headlineLarge.copy(
-                            fontFamily = FontFamily.Serif,
-                            fontWeight = FontWeight.SemiBold,
-                            color = accentColor,
-                            fontSize = 30.sp
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(R.string.home_title),
+                            style = MaterialTheme.typography.headlineLarge.copy(
+                                fontFamily = FontFamily.Serif,
+                                fontWeight = FontWeight.SemiBold,
+                                color = accentColor,
+                                fontSize = 30.sp
+                            )
                         )
-                    )
+                        LanguageSwitcher(accentColor = accentColor)
+                    }
                     Text(
                         text = stringResource(R.string.home_subtitle),
                         style = MaterialTheme.typography.bodyLarge.copy(
@@ -377,6 +388,44 @@ fun HomeScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
+    }
+}
+
+@Composable
+private fun LanguageSwitcher(accentColor: Color) {
+    val configuration = LocalConfiguration.current
+    val context = LocalContext.current
+    val appLocales = AppCompatDelegate.getApplicationLocales()
+    val locale = appLocales[0] ?: configuration.locales[0]
+    val isChinese = locale?.language == "zh"
+    val label = if (isChinese) {
+        stringResource(R.string.language_toggle_en)
+    } else {
+        stringResource(R.string.language_toggle_zh)
+    }
+    TextButton(
+        onClick = {
+            val target = if (isChinese) "en" else "zh-CN"
+            AppCompatDelegate.setApplicationLocales(
+                LocaleListCompat.forLanguageTags(target)
+            )
+            restartWithSplash(context)
+        }
+    ) {
+        Text(
+            text = label,
+            color = accentColor
+        )
+    }
+}
+
+private fun restartWithSplash(context: Context) {
+    val intent = Intent(context, SplashActivity::class.java)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+    context.startActivity(intent)
+    if (context is Activity) {
+        context.overridePendingTransition(0, 0)
+        context.finish()
     }
 }
 
