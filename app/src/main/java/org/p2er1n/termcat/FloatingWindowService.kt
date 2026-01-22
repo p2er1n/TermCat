@@ -70,10 +70,7 @@ class FloatingWindowService : Service() {
         val themedContext = ContextThemeWrapper(this, R.style.Theme_TermCat)
         overlayView = LayoutInflater.from(themedContext)
             .inflate(R.layout.overlay_floating_window, null, false)
-        overlayView.findViewById<MaterialCardView>(R.id.overlay_card).setOnClickListener {
-            handleCaptureClick()
-        }
-        overlayView.findViewById<MaterialButton>(R.id.overlay_capture).setOnClickListener {
+        overlayView.findViewById<View>(R.id.overlay_card).setOnClickListener {
             handleCaptureClick()
         }
 
@@ -116,6 +113,8 @@ class FloatingWindowService : Service() {
         var startY = 0
         var touchX = 0f
         var touchY = 0f
+        var downTime = 0L
+        var moved = false
 
         target.setOnTouchListener { _, event ->
             when (event.action) {
@@ -124,12 +123,31 @@ class FloatingWindowService : Service() {
                     startY = layoutParams.y
                     touchX = event.rawX
                     touchY = event.rawY
+                    downTime = event.downTime
+                    moved = false
+                    target.animate().scaleX(0.94f).scaleY(0.94f).setDuration(90).start()
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    layoutParams.x = startX + (event.rawX - touchX).toInt()
-                    layoutParams.y = startY + (event.rawY - touchY).toInt()
+                    val dx = (event.rawX - touchX).toInt()
+                    val dy = (event.rawY - touchY).toInt()
+                    if (kotlin.math.abs(dx) > 6 || kotlin.math.abs(dy) > 6) {
+                        moved = true
+                    }
+                    layoutParams.x = startX + dx
+                    layoutParams.y = startY + dy
                     windowManager.updateViewLayout(overlayView, layoutParams)
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    target.animate().scaleX(1f).scaleY(1f).setDuration(120).start()
+                    if (!moved && event.eventTime - downTime < 250) {
+                        target.performClick()
+                    }
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    target.animate().scaleX(1f).scaleY(1f).setDuration(120).start()
                     true
                 }
                 else -> false

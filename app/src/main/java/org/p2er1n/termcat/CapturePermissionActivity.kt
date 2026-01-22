@@ -38,4 +38,5 @@ class CapturePermissionActivity : ComponentActivity() {
         }
         sendBroadcast(intent)
     }
+
 }
