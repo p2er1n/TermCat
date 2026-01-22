@@ -705,8 +705,7 @@ class ScreenshotService : Service() {
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle(getString(R.string.capture_notification_title))
             .setContentText(getString(R.string.capture_notification_text))
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setOngoing(true)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .build()
     }
 
